@@ -1,0 +1,262 @@
+export type UserRole = 'employee' | 'manager' | 'admin' | 'super_admin';
+export type EmploymentStatus = 'active' | 'on_leave' | 'probation' | 'terminated';
+export type AttendanceStatus = 'present' | 'late' | 'half_day' | 'absent' | 'on_leave';
+export type WorkMode = 'office' | 'remote' | 'hybrid';
+export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'archived';
+export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
+export type PriorityLevel = 'low' | 'medium' | 'high' | 'urgent';
+export type MeetingStatus = 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
+export type ParticipantStatus = 'invited' | 'accepted' | 'declined' | 'tentative';
+export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'task' | 'leave' | 'standup' | 'meeting';
+
+export interface Department {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  manager_id?: string;
+  created_at: string;
+}
+
+export interface Designation {
+  id: string;
+  title: string;
+  department_id?: string;
+  level: string;
+  description?: string;
+  created_at: string;
+}
+
+export interface Profile {
+  id: string;
+  user_id?: string;
+  email: string;
+  full_name: string;
+  avatar_url?: string;
+  phone?: string;
+  department_id?: string;
+  department?: Department;
+  designation_id?: string;
+  designation?: Designation;
+  manager_id?: string;
+  manager?: Profile;
+  role: UserRole;
+  employment_status: EmploymentStatus;
+  joining_date: string;
+  address?: string;
+  emergency_contact?: string;
+  work_location?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Attendance {
+  id: string;
+  employee_id: string;
+  employee?: Profile;
+  date: string;
+  clock_in: string;
+  clock_out?: string | null;
+  total_hours: number;
+  status: AttendanceStatus;
+  work_mode: WorkMode;
+  notes?: string;
+  ip_address?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AttendanceCorrection {
+  id: string;
+  attendance_id?: string;
+  employee_id: string;
+  employee?: Profile;
+  requested_by: string;
+  date: string;
+  corrected_clock_in?: string;
+  corrected_clock_out?: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewed_by?: string;
+  review_note?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeaveType {
+  id: string;
+  name: string;
+  code: string;
+  default_days: number;
+  is_paid: boolean;
+  description?: string;
+}
+
+export interface LeaveRequest {
+  id: string;
+  employee_id: string;
+  employee?: Profile;
+  leave_type_id: string;
+  leave_type?: LeaveType;
+  start_date: string;
+  end_date: string;
+  total_days: number;
+  reason: string;
+  status: LeaveStatus;
+  approver_id?: string;
+  approver?: Profile;
+  approver_note?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  client_name?: string;
+  status: ProjectStatus;
+  priority: PriorityLevel;
+  start_date: string;
+  due_date?: string;
+  manager_id?: string;
+  manager?: Profile;
+  budget?: number;
+  members?: ProjectMember[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectMember {
+  id: string;
+  project_id: string;
+  employee_id: string;
+  employee?: Profile;
+  role: 'lead' | 'developer' | 'designer' | 'tester' | 'viewer' | 'contributor';
+  joined_at: string;
+}
+
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  employee_id: string;
+  employee?: Profile;
+  comment: string;
+  created_at: string;
+}
+
+export interface Task {
+  id: string;
+  project_id: string;
+  project?: Project;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  priority: PriorityLevel;
+  assignee_id?: string;
+  assignee?: Profile;
+  reporter_id?: string;
+  reporter?: Profile;
+  due_date?: string;
+  estimated_hours: number;
+  actual_hours: number;
+  tags: string[];
+  order_index: number;
+  comments?: TaskComment[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StandupActionItem {
+  title: string;
+  done: boolean;
+  assigned_to?: string;
+  deadline?: string;
+}
+
+export interface Standup {
+  id: string;
+  title: string;
+  date: string;
+  department_id?: string;
+  department?: Department;
+  created_by?: string;
+  creator?: Profile;
+  created_at: string;
+}
+
+export interface StandupResponse {
+  id: string;
+  standup_id: string;
+  employee_id: string;
+  employee?: Profile;
+  yesterday_work: string;
+  today_plan: string;
+  blockers?: string;
+  action_items?: StandupActionItem[];
+  submitted_at: string;
+}
+
+export interface Meeting {
+  id: string;
+  title: string;
+  description?: string;
+  agenda?: string;
+  meeting_url?: string;
+  room_location?: string;
+  start_time: string;
+  end_time: string;
+  status: MeetingStatus;
+  created_by: string;
+  creator?: Profile;
+  project_id?: string;
+  project?: Project;
+  notes?: string;
+  participants?: MeetingParticipant[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MeetingParticipant {
+  id: string;
+  meeting_id: string;
+  employee_id: string;
+  employee?: Profile;
+  status: ParticipantStatus;
+  joined_at?: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  employee_id: string;
+  title: string;
+  message: string;
+  type: NotificationType;
+  is_read: boolean;
+  action_url?: string;
+  created_at: string;
+}
+
+export interface Holiday {
+  id: string;
+  name: string;
+  holiday_date: string;
+  is_optional: boolean;
+  description?: string;
+  year: number;
+}
+
+export interface AuditLog {
+  id: string;
+  actor_id?: string;
+  actor?: Profile;
+  action: string;
+  entity_type: string;
+  entity_id?: string;
+  old_data?: Record<string, any>;
+  new_data?: Record<string, any>;
+  ip_address?: string;
+  created_at: string;
+}

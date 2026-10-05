@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 224 25% 6%;
+    --foreground: 210 20% 98%;
+
+    --card: 224 22% 8%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 224 22% 8%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 217 90% 55%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 224 16% 14%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 224 16% 12%;
+    --muted-foreground: 215 15% 60%;
+
+    --accent: 224 16% 14%;
+    --accent-foreground: 210 20% 98%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 224 15% 15%;
+    --input: 224 15% 15%;
+    --ring: 217 90% 55%;
+
+    --radius: 0.375rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-[#0b0d13] text-slate-100 font-sans antialiased overflow-hidden select-none;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes textShimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-text-shimmer {
+  background-size: 200% auto;
+  animation: textShimmer 4s ease-in-out infinite;
+}
+
+/* Native desktop scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.35);
+}
+
+/* Desktop App Surface Tokens */
+.desktop-titlebar {
+  -webkit-app-region: drag;
+}
+
+.desktop-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.desktop-panel {
+  background: #0f1219;
+  border: 1px solid #1e2430;
+}
+
+.desktop-surface {
+  background: #141822;
+  border: 1px solid #232a38;
+}
+
+.desktop-surface-hover:hover {
+  background: #1a202d;
+  border-color: #2e3748;
+}
+
+.desktop-card {
+  background: #11141c;
+  border: 1px solid #1c222e;
+}
+
+.desktop-table-header {
+  background: #0d1017;
+  border-bottom: 1px solid #1e2430;
+}
+
+.desktop-table-row {
+  border-bottom: 1px solid #161a24;
+}
+
+.desktop-table-row:hover {
+  background: rgba(30, 41, 59, 0.35);
+}
+
+/* Monospace data numbers */
+.num-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
