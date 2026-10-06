@@ -784,10 +784,39 @@ create policy "Meeting participants deletable by self or host/manager"
 
 -- 13. Notifications
 drop policy if exists "Notifications viewable and manageable by owner" on public.notifications;
-create policy "Notifications viewable and manageable by owner"
-  on public.notifications for all
+drop policy if exists "Notifications select policy" on public.notifications;
+drop policy if exists "Notifications insert policy" on public.notifications;
+drop policy if exists "Notifications update policy" on public.notifications;
+drop policy if exists "Notifications delete policy" on public.notifications;
+
+create policy "Notifications select policy"
+  on public.notifications for select
   to authenticated
-  using (employee_id = public.current_profile_id());
+  using (
+    employee_id in (select id from public.profiles where user_id = auth.uid() or id = auth.uid())
+    or public.is_manager()
+  );
+
+create policy "Notifications insert policy"
+  on public.notifications for insert
+  to authenticated
+  with check (true);
+
+create policy "Notifications update policy"
+  on public.notifications for update
+  to authenticated
+  using (
+    employee_id in (select id from public.profiles where user_id = auth.uid() or id = auth.uid())
+    or public.is_manager()
+  );
+
+create policy "Notifications delete policy"
+  on public.notifications for delete
+  to authenticated
+  using (
+    employee_id in (select id from public.profiles where user_id = auth.uid() or id = auth.uid())
+    or public.is_admin()
+  );
 
 -- 14. Holidays
 drop policy if exists "Holidays viewable by authenticated" on public.holidays;
