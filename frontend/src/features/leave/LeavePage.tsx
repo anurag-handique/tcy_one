@@ -400,14 +400,14 @@ export function LeavePage() {
 
               <div className="flex items-center gap-2">
                 {/* Search */}
-                <div className="relative min-w-[180px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500 pointer-events-none" />
+                <div className="relative min-w-[200px]">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                   <input
                     type="text"
                     placeholder="Filter holidays..."
                     value={holidaySearch}
                     onChange={(e) => setHolidaySearch(e.target.value)}
-                    className="w-full h-7.5 bg-[#0e121a] border border-[#1b202c] rounded-full pl-9 pr-3 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                    className="w-full h-8 bg-[#0e121a] border border-[#1b202c] rounded-full pl-9 pr-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500/80 focus:ring-1 focus:ring-blue-500/30 transition-all shadow-inner"
                   />
                 </div>
 
@@ -416,7 +416,7 @@ export function LeavePage() {
                   <Button
                     size="sm"
                     onClick={openAddHolidayModal}
-                    className="h-7.5 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-3 rounded-full gap-1 shadow-sm shrink-0"
+                    className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-3.5 rounded-full gap-1 shadow-sm shrink-0"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     <span>Add Holiday</span>
