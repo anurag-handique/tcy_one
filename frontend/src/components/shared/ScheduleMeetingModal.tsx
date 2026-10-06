@@ -388,13 +388,13 @@ export function ScheduleMeetingModal() {
               </div>
 
               <div className="relative">
-                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500" />
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
                 <input
                   type="text"
                   placeholder="Search teammates..."
                   value={employeeSearch}
                   onChange={(e) => setEmployeeSearch(e.target.value)}
-                  className="w-full h-7.5 bg-[#161b22] border border-[#30363d] rounded-lg pl-8 pr-2.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
+                  className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-full pl-8.5 pr-3.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
 
