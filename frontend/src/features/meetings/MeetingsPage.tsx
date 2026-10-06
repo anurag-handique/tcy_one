@@ -233,13 +233,13 @@ export function MeetingsPage() {
         </div>
 
         <div className="relative min-w-[220px]">
-          <Search className="absolute left-2.5 top-2 h-3 w-3 text-slate-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500 pointer-events-none" />
           <input
             type="text"
             placeholder="Search meetings, host, project..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-7 bg-[#090b10] border border-[#1b202c] rounded pl-7 pr-2.5 text-[11px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+            className="w-full h-8 bg-[#090b10] border border-[#1b202c] rounded-full pl-9 pr-3 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
           />
         </div>
       </div>

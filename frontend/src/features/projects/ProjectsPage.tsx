@@ -222,12 +222,12 @@ export function ProjectsPage() {
       <div className="flex flex-wrap items-center justify-between gap-2 bg-[#0b0e14] p-2.5 border border-[#1b202c]">
         <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-sm">
           <div className="relative w-full">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search projects by name, code, client..."
-              className="pl-8 h-7 text-xs bg-[#10141e] border-[#1f2637]"
+              className="pl-9 h-8 text-xs bg-[#10141e] border-[#1f2637] rounded-full"
             />
           </div>
         </div>

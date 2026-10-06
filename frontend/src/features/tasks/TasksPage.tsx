@@ -580,46 +580,46 @@ export function TasksPage() {
       </div>
 
       {/* Jira Quick Filter Bar */}
-      <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-lg bg-[#0a0d14] border border-[#1b2230] text-xs">
+      <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-xl bg-[#0a0d14] border border-[#1b2230] text-xs">
         {/* Search */}
-        <div className="relative flex-1 min-w-[180px]">
-          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
           <input
             placeholder="Search tasks, keys, tags..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-7.5 w-full rounded border border-[#1b2230] bg-[#11141c] pl-8 pr-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+            className="h-8 w-full rounded-full border border-[#1b2230] bg-[#11141c] pl-9 pr-3.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
           />
         </div>
 
         {/* Quick Filter Buttons */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setQuickFilter(quickFilter === 'my_issues' ? 'all' : 'my_issues')}
-            className={`px-2.5 py-1 rounded text-[11px] font-mono transition-colors border ${
+            className={`px-3 py-1.5 rounded-full text-[11px] font-mono transition-colors border ${
               quickFilter === 'my_issues'
-                ? 'bg-blue-600/20 text-blue-300 border-blue-500/40 font-semibold'
-                : 'bg-[#11141c] text-slate-400 border-[#1b2230] hover:text-slate-200'
+                ? 'bg-blue-600/20 text-blue-300 border-blue-500/40 font-semibold shadow-sm'
+                : 'bg-[#11141c] text-slate-400 border-[#1b2230] hover:text-slate-200 hover:bg-[#161b26]'
             }`}
           >
             Only My Issues
           </button>
           <button
             onClick={() => setQuickFilter(quickFilter === 'high_priority' ? 'all' : 'high_priority')}
-            className={`px-2.5 py-1 rounded text-[11px] font-mono transition-colors border ${
+            className={`px-3 py-1.5 rounded-full text-[11px] font-mono transition-colors border ${
               quickFilter === 'high_priority'
-                ? 'bg-rose-600/20 text-rose-300 border-rose-500/40 font-semibold'
-                : 'bg-[#11141c] text-slate-400 border-[#1b2230] hover:text-slate-200'
+                ? 'bg-rose-600/20 text-rose-300 border-rose-500/40 font-semibold shadow-sm'
+                : 'bg-[#11141c] text-slate-400 border-[#1b2230] hover:text-slate-200 hover:bg-[#161b26]'
             }`}
           >
             High Priority
           </button>
           <button
             onClick={() => setQuickFilter(quickFilter === 'done' ? 'all' : 'done')}
-            className={`px-2.5 py-1 rounded text-[11px] font-mono transition-colors border ${
+            className={`px-3 py-1.5 rounded-full text-[11px] font-mono transition-colors border ${
               quickFilter === 'done'
-                ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40 font-semibold'
-                : 'bg-[#11141c] text-slate-400 border-[#1b2230] hover:text-slate-200'
+                ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40 font-semibold shadow-sm'
+                : 'bg-[#11141c] text-slate-400 border-[#1b2230] hover:text-slate-200 hover:bg-[#161b26]'
             }`}
           >
             Completed
