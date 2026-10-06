@@ -100,9 +100,9 @@ export function TopBar() {
         >
           <div className="flex items-center gap-1.5">
             <Search className="h-3 w-3 text-slate-400" />
-            <span className="text-[10px]">Type / to search or ⌘K</span>
+            <span className="text-[10px]">Search or type /...</span>
           </div>
-          <kbd className="rounded-none border border-[#262d3e] bg-[#171b26] px-1 py-0.2 font-mono text-[8px] text-slate-400">
+          <kbd className="rounded-none border border-[#262d3e] bg-[#171b26] px-1.5 py-0.2 font-mono text-[9px] text-slate-400">
             Ctrl+K
           </kbd>
         </button>
