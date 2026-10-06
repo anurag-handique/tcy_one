@@ -103,11 +103,10 @@ export function TopBar() {
             <span className="text-xs text-slate-400">Search or type /...</span>
           </div>
           <div className="flex items-center gap-1">
-            <kbd className="inline-flex items-center gap-1 rounded-full border border-[#262d3e] bg-[#171b26] px-2 py-0.5 font-mono text-[9px] text-slate-400">
-              <svg className="h-2.5 w-2.5 text-slate-400 fill-current" viewBox="0 0 16 16">
-                <path d="M0 2.25A.25.25 0 0 1 .25 2h6.5a.25.25 0 0 1 .25.25v5a.25.25 0 0 1-.25.25H.25A.25.25 0 0 1 0 7.25v-5zm8.5-.25a.25.25 0 0 0-.25.25v5a.25.25 0 0 0 .25.25h6.5a.25.25 0 0 0 .25-.25v-5a.25.25 0 0 0-.25-.25h-6.5zm-8.5 6.5A.25.25 0 0 1 .25 8.25h6.5a.25.25 0 0 1 .25.25v5a.25.25 0 0 1-.25.25H.25a.25.25 0 0 1-.25-.25v-5zm8.5-.25a.25.25 0 0 0-.25.25v5a.25.25 0 0 0 .25.25h6.5a.25.25 0 0 0 .25-.25v-5a.25.25 0 0 0-.25-.25h-6.5z" />
-              </svg>
-              <span>+ K</span>
+            <kbd className="inline-flex items-center gap-1 rounded-full border border-[#262d3e] bg-[#171b26] px-2 py-0.5 font-mono text-[9px] text-slate-300 font-semibold shadow-inner">
+              <span>Ctrl</span>
+              <span className="text-slate-500 font-normal">+</span>
+              <span>K</span>
             </kbd>
           </div>
         </button>
@@ -116,20 +115,20 @@ export function TopBar() {
       {/* Right Action Tools */}
       <div className="flex items-center gap-2">
         {/* Attendance Punch Mini-Station */}
-        <div className="flex items-center rounded-none border border-[#212735] bg-[#121620] px-1.5 py-0.5 gap-1.5">
-          <div className="flex items-center gap-1 font-mono text-[10px] text-slate-300">
-            <Clock className="h-3 w-3 text-blue-400" />
-            <span>{elapsed}</span>
+        <div className="flex items-center rounded-full border border-[#212735] bg-[#121620] pl-2.5 pr-1 py-1 gap-2 shadow-sm">
+          <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-300">
+            <Clock className={`h-3.5 w-3.5 ${isClockedIn ? 'text-emerald-400 animate-pulse' : 'text-blue-400'}`} />
+            <span className="font-semibold text-slate-200">{elapsed}</span>
           </div>
           <button
             onClick={handleToggleAttendance}
-            className={`flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-none transition-colors ${
+            className={`flex items-center gap-1.5 text-[10px] font-bold uppercase px-3 py-1 rounded-full transition-all duration-150 shadow-sm ${
               isClockedIn
-                ? 'bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white border border-rose-600/30'
-                : 'bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-600/30'
+                ? 'bg-rose-500/15 text-rose-300 hover:bg-rose-600 hover:text-white border border-rose-500/30'
+                : 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-500/30'
             }`}
           >
-            {isClockedIn ? <Square className="h-2 w-2 fill-current" /> : <Play className="h-2 w-2 fill-current" />}
+            {isClockedIn ? <Square className="h-2.5 w-2.5 fill-current" /> : <Play className="h-2.5 w-2.5 fill-current" />}
             <span>{isClockedIn ? 'Punch Out' : 'Punch In'}</span>
           </button>
         </div>
@@ -137,10 +136,10 @@ export function TopBar() {
         {/* Notifications */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="relative flex h-6.5 w-6.5 items-center justify-center rounded-none border border-[#212735] bg-[#121620] text-slate-400 hover:bg-[#181d29] hover:text-white transition-colors">
-              <Bell className="h-3 w-3" />
+            <button className="relative flex h-8 w-8 items-center justify-center rounded-full border border-[#212735] bg-[#121620] text-slate-400 hover:bg-[#181d29] hover:text-white transition-colors">
+              <Bell className="h-3.5 w-3.5" />
               {unreadNotifs.length > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-3 min-w-3 px-0.5 items-center justify-center rounded-none bg-blue-600 text-[8px] font-bold text-white border border-blue-400/40">
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-blue-600 text-[8px] font-bold text-white border border-[#121620]">
                   {unreadNotifs.length}
                 </span>
               )}
