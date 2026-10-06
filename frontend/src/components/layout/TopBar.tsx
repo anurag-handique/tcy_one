@@ -35,7 +35,7 @@ export function TopBar() {
   const location = useLocation();
   const { currentUser, logout } = useAuthStore();
   const { setCommandPaletteOpen, setPunchModalOpen } = useUIStore();
-  const { attendance, notifications, markNotificationAsRead, markAllNotificationsAsRead, profiles, departments } = useDataStore();
+  const { attendance, notifications, markNotificationAsRead, markAllNotificationsAsRead, profiles, departments, designations } = useDataStore();
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayAttendance = attendance.find(
@@ -245,32 +245,48 @@ export function TopBar() {
                 </div>
               )}
 
-              {currentUser.designation_title && (
-                <div className="flex flex-col space-y-0.5 border-t border-[#161b26] pt-1.5">
-                  <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider font-mono">
-                    Designation
-                  </span>
-                  <span className="text-slate-200 text-[11px] leading-snug">
-                    {currentUser.designation_title}
-                  </span>
-                </div>
-              )}
+              {/* Designation */}
+              {(() => {
+                const desigTitle =
+                  currentUser.designation_title ||
+                  currentUser.designation?.title ||
+                  designations.find((d) => d.id === currentUser.designation_id)?.title ||
+                  null;
+                return (
+                  <div className="flex flex-col space-y-0.5 border-t border-[#161b26] pt-1.5">
+                    <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider font-mono">
+                      Designation
+                    </span>
+                    <span className="text-slate-200 text-[11px] leading-snug">
+                      {desigTitle || '—'}
+                    </span>
+                  </div>
+                );
+              })()}
 
-              {currentUser.department_id && (() => {
-                const dept = departments.find((d) => d.id === currentUser.department_id);
-                return dept ? (
+              {/* Department */}
+              {(() => {
+                const dept =
+                  departments.find((d) => d.id === currentUser.department_id) ||
+                  currentUser.department ||
+                  null;
+                return (
                   <div className="flex flex-col space-y-0.5 border-t border-[#161b26] pt-1.5">
                     <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider font-mono">
                       Department
                     </span>
-                    <div className="flex items-center gap-1.5 pt-0.5">
-                      <span className="inline-flex items-center px-1.5 py-0.2 rounded-none text-[9px] font-bold uppercase tracking-wider bg-slate-800/80 text-slate-300 border border-slate-700/50 font-mono">
-                        {dept.code}
-                      </span>
-                      <span className="text-slate-200 text-[11px]">{dept.name}</span>
-                    </div>
+                    {dept ? (
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <span className="inline-flex items-center px-1.5 py-0.2 rounded-none text-[9px] font-bold uppercase tracking-wider bg-slate-800/80 text-slate-300 border border-slate-700/50 font-mono">
+                          {dept.code}
+                        </span>
+                        <span className="text-slate-200 text-[11px]">{dept.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-200 text-[11px]">{'—'}</span>
+                    )}
                   </div>
-                ) : null;
+                );
               })()}
             </div>
 
