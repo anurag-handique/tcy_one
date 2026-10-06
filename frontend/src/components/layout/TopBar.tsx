@@ -96,15 +96,20 @@ export function TopBar() {
       <div className="flex-1 max-w-sm mx-4">
         <button
           onClick={() => setCommandPaletteOpen(true)}
-          className="flex h-6.5 w-full items-center justify-between rounded-none border border-[#212735] bg-[#121620] px-2 text-xs text-slate-400 hover:border-[#2f384c] hover:text-slate-200 transition-colors font-mono"
+          className="flex h-8 w-full items-center justify-between rounded-full border border-[#212735] bg-[#121620] px-3 text-xs text-slate-400 hover:border-[#333d52] hover:text-slate-200 transition-colors shadow-sm font-sans"
         >
-          <div className="flex items-center gap-1.5">
-            <Search className="h-3 w-3 text-slate-400" />
-            <span className="text-[10px]">Search or type /...</span>
+          <div className="flex items-center gap-2">
+            <Search className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-xs text-slate-400">Search or type /...</span>
           </div>
-          <kbd className="rounded-none border border-[#262d3e] bg-[#171b26] px-1.5 py-0.2 font-mono text-[9px] text-slate-400">
-            Ctrl+K
-          </kbd>
+          <div className="flex items-center gap-1">
+            <kbd className="inline-flex items-center gap-1 rounded-full border border-[#262d3e] bg-[#171b26] px-2 py-0.5 font-mono text-[9px] text-slate-400">
+              <svg className="h-2.5 w-2.5 text-slate-400 fill-current" viewBox="0 0 16 16">
+                <path d="M0 2.25A.25.25 0 0 1 .25 2h6.5a.25.25 0 0 1 .25.25v5a.25.25 0 0 1-.25.25H.25A.25.25 0 0 1 0 7.25v-5zm8.5-.25a.25.25 0 0 0-.25.25v5a.25.25 0 0 0 .25.25h6.5a.25.25 0 0 0 .25-.25v-5a.25.25 0 0 0-.25-.25h-6.5zm-8.5 6.5A.25.25 0 0 1 .25 8.25h6.5a.25.25 0 0 1 .25.25v5a.25.25 0 0 1-.25.25H.25a.25.25 0 0 1-.25-.25v-5zm8.5-.25a.25.25 0 0 0-.25.25v5a.25.25 0 0 0 .25.25h6.5a.25.25 0 0 0 .25-.25v-5a.25.25 0 0 0-.25-.25h-6.5z" />
+              </svg>
+              <span>+ K</span>
+            </kbd>
+          </div>
         </button>
       </div>
 
