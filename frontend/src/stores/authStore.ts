@@ -110,19 +110,21 @@ export const useAuthStore = create<AuthState>()(
             });
 
             if (error) {
-              console.warn('Database authentication failed:', error);
-              let detailedMessage = error.message;
+              console.warn('Authentication failed:', error);
+              let detailedMessage = 'Unable to sign in. Please check your credentials and try again.';
 
-              if (error.message?.toLowerCase().includes('database error querying schema') || error.status === 500) {
-                detailedMessage = 'Database Auth Error (HTTP 500): Supabase GoTrue auth schema permissions or triggers need repair. Run scripts/fix_supabase_auth.sql in your Supabase SQL Editor.';
-              } else if (error.message?.toLowerCase().includes('invalid login credentials') || error.message?.toLowerCase().includes('invalid credentials')) {
-                detailedMessage = 'Invalid credentials: The password or email you entered does not match our database records.';
-              } else if (error.message?.toLowerCase().includes('email not confirmed')) {
-                detailedMessage = 'Account Inactive: Your email address has not been confirmed yet in Supabase Auth.';
+              if (error.message?.toLowerCase().includes('email not confirmed')) {
+                detailedMessage = 'Account Pending Activation: Your email address has not been verified yet. Please check your inbox or contact your organization administrator.';
+              } else if (
+                error.message?.toLowerCase().includes('invalid login credentials') ||
+                error.message?.toLowerCase().includes('invalid credentials') ||
+                error.message?.toLowerCase().includes('user not found')
+              ) {
+                detailedMessage = 'Invalid credentials: The email or password entered is incorrect.';
               } else if (error.message?.toLowerCase().includes('too many requests') || error.status === 429) {
-                detailedMessage = 'Rate Limited: Too many failed login attempts. Please wait 60 seconds before trying again.';
-              } else if (error.message?.toLowerCase().includes('user not found')) {
-                detailedMessage = 'Account Not Found: No registered employee account matches this email address.';
+                detailedMessage = 'Too Many Attempts: Access temporarily throttled. Please wait a minute before trying again.';
+              } else if (error.status === 500 || error.message?.toLowerCase().includes('database error')) {
+                detailedMessage = 'Authentication Service Unavailable: Unable to process request. Please try again later or contact IT support.';
               }
 
               set({ isLoadingAuth: false, authError: detailedMessage });
@@ -162,18 +164,15 @@ export const useAuthStore = create<AuthState>()(
               return { success: true };
             }
           } catch (err: any) {
-            console.error('Database authentication exception:', err);
-            let msg = err.message || 'Database error during authentication';
-            if (msg.toLowerCase().includes('database error querying schema')) {
-              msg = 'Database Auth Error (HTTP 500): GoTrue schema permissions need repair. Please run scripts/fix_supabase_auth.sql in Supabase SQL Editor.';
-            }
+            console.error('Authentication exception:', err);
+            const msg = 'Authentication Service Unavailable: Unable to process request. Please try again later.';
             set({ isLoadingAuth: false, authError: msg });
             return { success: false, error: msg };
           }
         }
 
-        set({ isLoadingAuth: false, authError: 'Invalid credentials: No matching account found in the database.' });
-        return { success: false, error: 'Invalid credentials: No matching account found in the database.' };
+        set({ isLoadingAuth: false, authError: 'Invalid credentials: The email or password entered is incorrect.' });
+        return { success: false, error: 'Invalid credentials: The email or password entered is incorrect.' };
       },
 
       logout: async () => {

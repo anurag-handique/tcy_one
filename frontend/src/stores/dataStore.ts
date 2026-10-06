@@ -1151,8 +1151,8 @@ export const useDataStore = create<DataState>()(
             );
 
             if (profError) {
-              console.error('Direct profile upsert error:', profError);
-              return { success: false, error: profError.message };
+              console.error('Profile creation error:', profError);
+              return { success: false, error: 'Unable to create employee profile. Please try again.' };
             }
 
             const fallbackProf: Profile = {
@@ -1189,7 +1189,7 @@ export const useDataStore = create<DataState>()(
             return { success: true };
           } catch (err: any) {
             console.error('Failed to provision employee account:', err);
-            return { success: false, error: err?.message || 'Failed to create account in database' };
+            return { success: false, error: 'Unable to onboard employee account. Please try again.' };
           }
         } else {
           // Local fallback
