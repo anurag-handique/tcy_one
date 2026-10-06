@@ -179,6 +179,9 @@ create table if not exists public.standups (
     id uuid primary key default gen_random_uuid(),
     title text not null,
     date date not null default current_date,
+    meeting_url text,
+    cutoff_time text default '10:30',
+    meeting_time text default '11:00',
     department_id uuid references public.departments(id) on delete set null,
     created_by uuid references public.profiles(id) on delete set null,
     created_at timestamptz default now() not null
@@ -192,6 +195,7 @@ create table if not exists public.standup_responses (
     yesterday_work text not null,
     today_plan text not null,
     blockers text,
+    status text not null default 'submitted' check (status in ('submitted', 'late', 'missed')),
     action_items jsonb default '[]'::jsonb,
     submitted_at timestamptz default now() not null,
     unique(standup_id, employee_id)
@@ -405,13 +409,16 @@ create policy "Members and managers can insert/update tasks"
 
 -- STANDUPS & RESPONSES POLICIES
 create policy "View standups" on public.standups for select to authenticated using (true);
-create policy "Manage standups" on public.standups for all to authenticated using (public.is_manager());
+create policy "Manage standups" on public.standups for all to authenticated 
+    using (public.is_manager() or (auth.jwt()->'user_metadata'->>'role') in ('manager', 'admin', 'super_admin') or created_by = public.current_profile_id())
+    with check (public.is_manager() or (auth.jwt()->'user_metadata'->>'role') in ('manager', 'admin', 'super_admin') or created_by = public.current_profile_id());
 
 create policy "View standup responses" on public.standup_responses for select to authenticated using (true);
 create policy "Submit standup responses" on public.standup_responses for insert to authenticated 
-    with check (employee_id = public.current_profile_id() or public.is_admin());
+    with check (employee_id = public.current_profile_id() or public.is_manager() or (auth.jwt()->'user_metadata'->>'role') in ('manager', 'admin', 'super_admin'));
 create policy "Update standup responses" on public.standup_responses for update to authenticated 
-    using (employee_id = public.current_profile_id() or public.is_admin());
+    using (employee_id = public.current_profile_id() or public.is_manager() or (auth.jwt()->'user_metadata'->>'role') in ('manager', 'admin', 'super_admin'))
+    with check (employee_id = public.current_profile_id() or public.is_manager() or (auth.jwt()->'user_metadata'->>'role') in ('manager', 'admin', 'super_admin'));
 
 -- MEETINGS POLICIES
 create policy "View meetings" on public.meetings for select to authenticated using (true);

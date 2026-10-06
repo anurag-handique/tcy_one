@@ -10,6 +10,8 @@ import {
   Building,
   CheckCircle2,
   MapPin,
+  Eye,
+  Info,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
@@ -57,6 +59,7 @@ export function AttendancePage() {
 
   const [selectedWorkMode, setSelectedWorkMode] = React.useState<WorkMode>('office');
   const [correctionModalOpen, setCorrectionModalOpen] = React.useState(false);
+  const [selectedAttendanceLog, setSelectedAttendanceLog] = React.useState<Attendance | null>(null);
   const [corrDate, setCorrDate] = React.useState(todayStr);
   const [corrIn, setCorrIn] = React.useState('09:30');
   const [corrOut, setCorrOut] = React.useState('18:30');
@@ -289,13 +292,18 @@ export function AttendancePage() {
                   <th className="py-2 px-3">Punch Out Location</th>
                   <th className="py-2 px-3">Status</th>
                   <th className="py-2 px-3">Log Notes</th>
+                  <th className="py-2 px-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#171b26]">
                 {myAttendanceHistory.map((rec) => {
                   const stat = getStatusColor(rec.status);
                   return (
-                    <tr key={rec.id} className="desktop-table-row text-slate-300">
+                    <tr
+                      key={rec.id}
+                      onClick={() => setSelectedAttendanceLog(rec)}
+                      className="desktop-table-row cursor-pointer text-slate-300 hover:bg-[#10141e] transition-colors"
+                    >
                       <td className="py-2 px-3 font-mono font-medium text-slate-200">
                         {formatDate(rec.date, 'EEEE, dd MMM yyyy')}
                       </td>
@@ -335,6 +343,20 @@ export function AttendancePage() {
                       </td>
                       <td className="py-2 px-3 text-slate-400 truncate max-w-[180px]">
                         {rec.notes || '—'}
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedAttendanceLog(rec);
+                          }}
+                          className="h-6.5 text-[10.5px] font-mono gap-1 px-2.5 border-[#222a3d] bg-[#121622] hover:bg-[#1a2133] text-slate-200"
+                        >
+                          <Eye className="h-3 w-3 text-blue-400" />
+                          <span>View</span>
+                        </Button>
                       </td>
                     </tr>
                   );
@@ -485,6 +507,157 @@ export function AttendancePage() {
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Timesheet Record Full Details Modal */}
+      {selectedAttendanceLog && (() => {
+        const emp = profiles.find((p) => p.id === selectedAttendanceLog.employee_id || p.user_id === selectedAttendanceLog.employee_id) || currentUser;
+        const stat = getStatusColor(selectedAttendanceLog.status);
+
+        return (
+          <Dialog open={Boolean(selectedAttendanceLog)} onOpenChange={() => setSelectedAttendanceLog(null)}>
+            <DialogContent className="max-w-2xl bg-[#0c0f17] border-[#1f2637] p-6 shadow-2xl">
+              <DialogHeader className="border-b border-[#1b2230] pb-3 pr-10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-white uppercase tracking-wider">
+                      Timesheet Record Details
+                    </span>
+                    <span className="text-slate-500">/</span>
+                    <span className="font-mono text-xs text-blue-400 font-semibold">
+                      {formatDate(selectedAttendanceLog.date, 'dd MMM yyyy')}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2.5 py-0.5 text-[10px] font-mono uppercase rounded border font-bold ${stat.text} ${stat.border} ${stat.bg}`}>
+                      {selectedAttendanceLog.status.toUpperCase()}
+                    </span>
+                    <span className="px-2 py-0.5 text-[10px] font-mono uppercase rounded bg-[#141824] border border-[#232c3f] text-slate-300">
+                      {selectedAttendanceLog.work_mode}
+                    </span>
+                  </div>
+                </div>
+
+                <DialogTitle className="text-base text-white mt-2 font-mono text-left">
+                  {formatDate(selectedAttendanceLog.date, 'EEEE, dd MMMM yyyy')}
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-4 pt-2 text-xs">
+                {/* Employee Profile Header Card */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-[#0e121c] border border-[#1b2230]">
+                  <div className="flex items-center gap-3">
+                    <UserAvatar name={emp?.full_name || 'Employee'} avatarUrl={emp?.avatar_url} size="md" className="h-9 w-9 text-xs" />
+                    <div>
+                      <div className="font-bold text-white text-sm">{emp?.full_name}</div>
+                      <div className="text-[11px] text-slate-400 font-mono">
+                        {emp?.designation_title || emp?.role?.replace('_', ' ').toUpperCase()} • {emp?.email}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right font-mono text-[11px]">
+                    <span className="text-slate-400 block uppercase text-[9px]">Shift Policy</span>
+                    <span className="text-slate-200">{attendancePolicy.office_start_time} - {attendancePolicy.office_end_time}</span>
+                  </div>
+                </div>
+
+                {/* Timings & Working Hours Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[#0e121c] p-3 rounded-lg border border-[#1b2230] font-mono text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase mb-0.5">Clock In</span>
+                    <span className="text-white font-bold text-sm block">
+                      {formatTime(selectedAttendanceLog.clock_in)}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase mb-0.5">Clock Out</span>
+                    <span className="text-white font-bold text-sm block">
+                      {selectedAttendanceLog.clock_out ? formatTime(selectedAttendanceLog.clock_out) : 'Active / In Progress'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase mb-0.5">Total Duration</span>
+                    <span className="text-blue-400 font-bold text-sm block">
+                      {selectedAttendanceLog.total_hours ? `${selectedAttendanceLog.total_hours}h` : formatWorkingDuration(selectedAttendanceLog.clock_in, selectedAttendanceLog.clock_out)}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase mb-0.5">Overtime</span>
+                    <span className="text-purple-400 font-bold text-sm block">
+                      {selectedAttendanceLog.overtime_hours && selectedAttendanceLog.overtime_hours > 0 ? `+${selectedAttendanceLog.overtime_hours}h` : '0h'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Geo-Location Details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="bg-[#0e121c] p-3 rounded-lg border border-[#1b2230] space-y-1">
+                    <span className="text-slate-400 block text-[10px] font-mono uppercase">Punch In Location</span>
+                    <div className="flex items-start gap-1.5 pt-0.5">
+                      <MapPin className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                      <span className="text-slate-200 text-xs font-mono leading-relaxed break-words">
+                        {selectedAttendanceLog.punch_in_location || 'Desktop Verified Location'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0e121c] p-3 rounded-lg border border-[#1b2230] space-y-1">
+                    <span className="text-slate-400 block text-[10px] font-mono uppercase">Punch Out Location</span>
+                    <div className="flex items-start gap-1.5 pt-0.5">
+                      <MapPin className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span className="text-slate-200 text-xs font-mono leading-relaxed break-words">
+                        {selectedAttendanceLog.punch_out_location || 'Pending shift punch-out'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Full Audit Notes */}
+                <div className="bg-[#0e121c] p-3.5 rounded-lg border border-[#1b2230] space-y-1.5">
+                  <span className="text-slate-400 block text-[10px] font-mono uppercase">
+                    System Audit Notes & Logs
+                  </span>
+                  <p className="text-slate-200 text-xs leading-relaxed whitespace-pre-wrap font-sans bg-[#090c13] p-2.5 rounded border border-[#171e2c]">
+                    {selectedAttendanceLog.notes || 'Normal attendance logged with standard policy check.'}
+                  </p>
+                </div>
+              </div>
+
+              <DialogFooter className="pt-4 border-t border-[#1b2230] flex items-center justify-between sm:justify-between w-full mt-2">
+                <div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const dateStr = selectedAttendanceLog.date;
+                      setSelectedAttendanceLog(null);
+                      setCorrDate(dateStr);
+                      setCorrectionModalOpen(true);
+                    }}
+                    className="h-8 text-xs border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-mono gap-1.5"
+                  >
+                    <FileEdit className="h-3.5 w-3.5" />
+                    <span>Request Regularization</span>
+                  </Button>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedAttendanceLog(null)}
+                  className="h-8 text-xs border-[#232c3f] bg-[#141824] font-mono text-slate-200 hover:bg-[#1a2130]"
+                >
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Regularization Modal */}
       <Dialog open={correctionModalOpen} onOpenChange={setCorrectionModalOpen}>

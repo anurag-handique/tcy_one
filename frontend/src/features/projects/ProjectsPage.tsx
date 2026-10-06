@@ -21,7 +21,7 @@ import { useDataStore } from '@/stores/dataStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { Project, PriorityLevel, ProjectStatus } from '@/types';
-import { formatDate, getPriorityColor, getStatusColor } from '@/lib/utils';
+import { formatDate, formatRupees, getPriorityColor, getStatusColor } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
 import { UserAvatar } from '@/components/ui/Avatar';
@@ -50,7 +50,7 @@ export function ProjectsPage() {
   const [selectedProject, setSelectedProject] = React.useState<Project | null>(null);
   const [editingProject, setEditingProject] = React.useState<Project | null>(null);
 
-  // Form State for Create
+  // Form State for Create (Budget is optional)
   const [name, setName] = React.useState('');
   const [code, setCode] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -59,10 +59,10 @@ export function ProjectsPage() {
   const [status, setStatus] = React.useState<ProjectStatus>('active');
   const [startDate, setStartDate] = React.useState(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = React.useState(new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString().split('T')[0]);
-  const [budget, setBudget] = React.useState('50000');
+  const [budget, setBudget] = React.useState('');
   const [managerId, setManagerId] = React.useState(currentUser.id);
 
-  // Form State for Edit
+  // Form State for Edit (Budget is optional)
   const [editName, setEditName] = React.useState('');
   const [editCode, setEditCode] = React.useState('');
   const [editDescription, setEditDescription] = React.useState('');
@@ -71,7 +71,7 @@ export function ProjectsPage() {
   const [editStatus, setEditStatus] = React.useState<ProjectStatus>('active');
   const [editStartDate, setEditStartDate] = React.useState('');
   const [editDueDate, setEditDueDate] = React.useState('');
-  const [editBudget, setEditBudget] = React.useState('0');
+  const [editBudget, setEditBudget] = React.useState('');
   const [editManagerId, setEditManagerId] = React.useState('');
 
   const openEditModal = (proj: Project, e?: React.MouseEvent) => {
@@ -85,7 +85,7 @@ export function ProjectsPage() {
     setEditStatus(proj.status);
     setEditStartDate(proj.start_date ? proj.start_date.split('T')[0] : '');
     setEditDueDate(proj.due_date ? proj.due_date.split('T')[0] : '');
-    setEditBudget(proj.budget?.toString() || '0');
+    setEditBudget(proj.budget && proj.budget > 0 ? proj.budget.toString() : '');
     setEditManagerId(proj.manager_id || currentUser.id);
     setEditModalOpen(true);
   };
@@ -107,7 +107,7 @@ export function ProjectsPage() {
       start_date: startDate,
       due_date: dueDate,
       manager_id: managerId || currentUser.id,
-      budget: parseFloat(budget) || 0,
+      budget: budget.trim() ? parseFloat(budget) : 0,
     });
 
     toast.success(`Project "${name.trim()}" created successfully!`);
@@ -116,6 +116,7 @@ export function ProjectsPage() {
     setCode('');
     setDescription('');
     setClientName('');
+    setBudget('');
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
@@ -136,7 +137,7 @@ export function ProjectsPage() {
       start_date: editStartDate,
       due_date: editDueDate,
       manager_id: editManagerId,
-      budget: parseFloat(editBudget) || 0,
+      budget: editBudget.trim() ? parseFloat(editBudget) : 0,
     };
 
     updateProject(editingProject.id, updates);
@@ -381,45 +382,16 @@ export function ProjectsPage() {
         <Dialog open={Boolean(selectedProject)} onOpenChange={() => setSelectedProject(null)}>
           <DialogContent className="max-w-2xl bg-[#0e1118] border-[#1f2533] p-5">
             <DialogHeader className="border-b border-[#1b202c] pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="bg-[#181d28] px-2 py-0.5 font-mono text-xs font-bold text-blue-400 border border-[#252c3c]">
-                    {selectedProject.code}
-                  </span>
-                  <span className={`px-1.5 py-0.5 font-mono text-[9px] border uppercase ${getPriorityColor(selectedProject.priority).bg}`}>
-                    {selectedProject.priority}
-                  </span>
-                  <span className={`px-1.5 py-0.5 font-mono text-[9px] border uppercase ${getStatusColor(selectedProject.status).text} ${getStatusColor(selectedProject.status).border}`}>
-                    {selectedProject.status.replace('_', ' ')}
-                  </span>
-                </div>
-
-                {/* Edit / Delete actions in Detail modal */}
-                {isManagerOrAdmin && (
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openEditModal(selectedProject)}
-                      className="h-6.5 text-[10px] gap-1 border-[#2a3449] bg-[#141924] hover:bg-[#1c2333] text-slate-200"
-                    >
-                      <Edit className="h-3 w-3" />
-                      <span>Edit Project</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setEditingProject(selectedProject);
-                        setDeleteConfirmOpen(true);
-                      }}
-                      className="h-6.5 text-[10px] gap-1 border-rose-500/30 bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-400"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      <span>Delete</span>
-                    </Button>
-                  </div>
-                )}
+              <div className="flex items-center gap-2">
+                <span className="bg-[#181d28] px-2 py-0.5 font-mono text-xs font-bold text-blue-400 border border-[#252c3c]">
+                  {selectedProject.code}
+                </span>
+                <span className={`px-1.5 py-0.5 font-mono text-[9px] border uppercase ${getPriorityColor(selectedProject.priority).bg}`}>
+                  {selectedProject.priority}
+                </span>
+                <span className={`px-1.5 py-0.5 font-mono text-[9px] border uppercase ${getStatusColor(selectedProject.status).text} ${getStatusColor(selectedProject.status).border}`}>
+                  {selectedProject.status.replace('_', ' ')}
+                </span>
               </div>
               <DialogTitle className="text-base font-bold text-white font-mono mt-1">
                 {selectedProject.name}
@@ -470,9 +442,9 @@ export function ProjectsPage() {
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block uppercase">Budget Allocation</span>
-                  <span className="text-emerald-400 font-bold block mt-1">
-                    ${(selectedProject.budget || 0).toLocaleString()}
+                  <span className="text-slate-500 block uppercase">Budget (Optional)</span>
+                  <span className="text-emerald-400 font-bold block mt-1 font-mono">
+                    {selectedProject.budget && selectedProject.budget > 0 ? formatRupees(selectedProject.budget) : '—'}
                   </span>
                 </div>
               </div>
@@ -532,16 +504,48 @@ export function ProjectsPage() {
               </div>
             </div>
 
-            <DialogFooter className="pt-2 border-t border-[#1b202c]">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedProject(null)}
-                className="h-7 text-xs border-[#232b3c] bg-[#121620]"
-              >
-                Close
-              </Button>
+            <DialogFooter className="pt-3 border-t border-[#1b202c] flex items-center justify-between sm:justify-between w-full">
+              <div>
+                {isManagerOrAdmin && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingProject(selectedProject);
+                      setDeleteConfirmOpen(true);
+                    }}
+                    className="h-7 text-xs gap-1 border-rose-500/30 bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-400 font-mono"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Delete</span>
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {isManagerOrAdmin && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openEditModal(selectedProject)}
+                    className="h-7 text-xs gap-1 border-[#2a3449] bg-[#141924] hover:bg-[#1c2333] text-slate-200 font-mono"
+                  >
+                    <Edit className="h-3.5 w-3.5" />
+                    <span>Edit Project</span>
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedProject(null)}
+                  className="h-7 text-xs border-[#232b3c] bg-[#121620] font-mono text-slate-200"
+                >
+                  Close
+                </Button>
+              </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -656,12 +660,13 @@ export function ProjectsPage() {
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Budget ($)</label>
+                <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Budget (₹ - Optional)</label>
                 <Input
                   type="number"
+                  placeholder="Optional"
                   value={budget}
                   onChange={(e) => setBudget(e.target.value)}
-                  className="h-7 bg-[#0b0e14] border-[#1b202c] font-mono"
+                  className="h-7 bg-[#0b0e14] border-[#1b202c] font-mono placeholder:text-slate-600"
                 />
               </div>
             </div>
@@ -809,12 +814,13 @@ export function ProjectsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Budget ($)</label>
+                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Budget (₹ - Optional)</label>
                   <Input
                     type="number"
+                    placeholder="Optional"
                     value={editBudget}
                     onChange={(e) => setEditBudget(e.target.value)}
-                    className="h-7 bg-[#0b0e14] border-[#1b202c] font-mono"
+                    className="h-7 bg-[#0b0e14] border-[#1b202c] font-mono placeholder:text-slate-600"
                   />
                 </div>
               </div>

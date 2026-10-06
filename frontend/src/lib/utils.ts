@@ -26,6 +26,11 @@ export function formatTime(dateString?: string | Date | null): string {
   }
 }
 
+export function formatRupees(amount?: number | null): string {
+  if (amount === undefined || amount === null || isNaN(amount) || amount === 0) return '—';
+  return `₹${amount.toLocaleString('en-IN')}`;
+}
+
 export function formatRelativeTime(dateString?: string | Date | null): string {
   if (!dateString) return '';
   try {

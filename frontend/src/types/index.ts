@@ -196,6 +196,9 @@ export interface Standup {
   id: string;
   title: string;
   date: string;
+  meeting_url?: string;
+  cutoff_time: string; // e.g. "10:30"
+  meeting_time: string; // e.g. "11:00"
   department_id?: string;
   department?: Department;
   created_by?: string;
@@ -211,6 +214,7 @@ export interface StandupResponse {
   yesterday_work: string;
   today_plan: string;
   blockers?: string;
+  status: 'submitted' | 'late' | 'missed';
   action_items?: StandupActionItem[];
   submitted_at: string;
 }

@@ -60,6 +60,20 @@ const getInitialAttendancePolicy = (): AttendancePolicy => {
   return DEFAULT_ATTENDANCE_POLICY;
 };
 
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
+const isValidUUID = (str?: string) =>
+  typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
 interface DataState {
   profiles: Profile[];
   departments: Department[];
@@ -101,7 +115,9 @@ interface DataState {
   reviewLeaveRequest: (id: string, status: 'approved' | 'rejected', approverId: string, note?: string) => void;
 
   // Standup Actions
-  submitStandupResponse: (response: Omit<StandupResponse, 'id' | 'submitted_at'>) => StandupResponse;
+  createStandup: (standup: Omit<Standup, 'id' | 'created_at'>) => Standup;
+  updateStandup: (id: string, updates: Partial<Standup>) => void;
+  submitStandupResponse: (response: Omit<StandupResponse, 'id' | 'submitted_at' | 'status'>) => StandupResponse;
 
   // Meeting Actions
   createMeeting: (meeting: Omit<Meeting, 'id' | 'created_at' | 'updated_at'>) => Meeting;
@@ -245,17 +261,28 @@ export const useDataStore = create<DataState>()(
 
           const finalProfiles = Array.from(profileMap.values());
 
+          const activeProfilesList = finalProfiles.length > 0 ? finalProfiles : currentProfiles;
+          const enrichedTasks = (tasksData && tasksData.length > 0 ? tasksData : get().tasks).map((t) => {
+            const matchedAssignee = activeProfilesList.find(
+              (p) => p.id === t.assignee_id || p.user_id === t.assignee_id
+            );
+            return {
+              ...t,
+              assignee: matchedAssignee || t.assignee,
+            };
+          });
+
           set({
-            profiles: finalProfiles.length > 0 ? finalProfiles : currentProfiles,
+            profiles: activeProfilesList,
             departments: activeDepartments,
             designations: activeDesignations,
             attendance: mergedAttendance,
             leaveTypes: leaveTypesData && leaveTypesData.length > 0 ? leaveTypesData : get().leaveTypes,
             leaveRequests: leaveReqsData && leaveReqsData.length > 0 ? leaveReqsData : get().leaveRequests,
             projects: projectsData && projectsData.length > 0 ? projectsData : get().projects,
-            tasks: tasksData && tasksData.length > 0 ? tasksData : get().tasks,
-            standups: standupsData && standupsData.length > 0 ? standupsData : get().standups,
-            standupResponses: standupResponsesData && standupResponsesData.length > 0 ? standupResponsesData : get().standupResponses,
+            tasks: enrichedTasks,
+            standups: standupsData || [],
+            standupResponses: standupResponsesData || [],
             meetings: meetingsData && meetingsData.length > 0 ? meetingsData : get().meetings,
             notifications: notifsData && notifsData.length > 0 ? notifsData : get().notifications,
             holidays: holidaysData && holidaysData.length > 0 ? holidaysData : get().holidays,
@@ -485,8 +512,12 @@ export const useDataStore = create<DataState>()(
 
       // Create Task
       createTask: (taskData) => {
+        const matchedAssignee = get().profiles.find(
+          (p) => p.id === taskData.assignee_id || p.user_id === taskData.assignee_id
+        );
         const newTask: Task = {
           ...taskData,
+          assignee: matchedAssignee,
           id: 'task-' + Date.now(),
           order_index: get().tasks.length,
           created_at: new Date().toISOString(),
@@ -651,10 +682,132 @@ export const useDataStore = create<DataState>()(
       },
 
       // Standups
+      createStandup: (standupData) => {
+        const localId = generateUUID();
+        const newStandup: Standup = {
+          ...standupData,
+          id: localId,
+          meeting_url: standupData.meeting_url || '',
+          cutoff_time: standupData.cutoff_time || '09:30',
+          meeting_time: standupData.meeting_time || '09:00',
+          created_at: new Date().toISOString(),
+        };
+
+        set((state) => ({ standups: [newStandup, ...state.standups] }));
+
+        if (supabase && isSupabaseConfigured) {
+          Promise.resolve(
+            supabase
+              .from('standups')
+              .insert({
+                title: newStandup.title,
+                date: newStandup.date,
+                meeting_url: newStandup.meeting_url,
+                cutoff_time: newStandup.cutoff_time,
+                meeting_time: newStandup.meeting_time,
+                department_id: isValidUUID(newStandup.department_id) ? newStandup.department_id : null,
+                created_by: isValidUUID(newStandup.created_by) ? newStandup.created_by : null,
+              })
+              .select()
+              .single()
+          )
+            .then((res: any) => {
+              if (res?.data?.id) {
+                const dbId = res.data.id;
+                set((state) => ({
+                  standups: state.standups.map((s) => (s.id === localId ? { ...s, id: dbId } : s)),
+                  standupResponses: state.standupResponses.map((r) =>
+                    r.standup_id === localId ? { ...r, standup_id: dbId } : r
+                  ),
+                }));
+              }
+            })
+            .catch((err: any) => console.warn('Supabase standup insert:', err?.message || err));
+        }
+
+        return newStandup;
+      },
+
+      updateStandup: (id, updates) => {
+        set((state) => ({
+          standups: state.standups.map((s) => (s.id === id ? { ...s, ...updates } : s)),
+        }));
+
+        if (supabase && isSupabaseConfigured) {
+          const client = supabase;
+          const current = get().standups.find((s) => s.id === id) || ({} as Partial<Standup>);
+          const payload: any = {
+            title: updates.title !== undefined ? updates.title : current.title || 'Daily Engineering & Squad Standup',
+            date: updates.date !== undefined ? updates.date : current.date || new Date().toISOString().split('T')[0],
+            meeting_url: updates.meeting_url !== undefined ? updates.meeting_url : current.meeting_url || '',
+            cutoff_time: updates.cutoff_time !== undefined ? updates.cutoff_time : current.cutoff_time || '09:30',
+            meeting_time: updates.meeting_time !== undefined ? updates.meeting_time : current.meeting_time || '09:00',
+          };
+          if (isValidUUID(updates.department_id || current.department_id)) {
+            payload.department_id = updates.department_id || current.department_id;
+          }
+          if (isValidUUID(updates.created_by || current.created_by)) {
+            payload.created_by = updates.created_by || current.created_by;
+          }
+
+          if (isValidUUID(id)) {
+            Promise.resolve(
+              client.from('standups').update(payload).eq('id', id).select()
+            )
+              .then((res: any) => {
+                if (!res?.data || res.data.length === 0) {
+                  // ID was not in DB, insert fresh row!
+                  Promise.resolve(client.from('standups').insert(payload).select().single())
+                    .then((insertRes: any) => {
+                      if (insertRes?.data?.id) {
+                        const newDbId = insertRes.data.id;
+                        set((state) => ({
+                          standups: state.standups.map((s) => (s.id === id ? { ...s, id: newDbId } : s)),
+                          standupResponses: state.standupResponses.map((r) =>
+                            r.standup_id === id ? { ...r, standup_id: newDbId } : r
+                          ),
+                        }));
+                      }
+                    })
+                    .catch((err) => console.warn('Supabase standup fallback insert:', err));
+                }
+              })
+              .catch((err) => console.warn('Supabase standup update:', err));
+          } else {
+            // Non-UUID id, insert new row
+            Promise.resolve(client.from('standups').insert(payload).select().single())
+              .then((insertRes: any) => {
+                if (insertRes?.data?.id) {
+                  const newDbId = insertRes.data.id;
+                  set((state) => ({
+                    standups: state.standups.map((s) => (s.id === id ? { ...s, id: newDbId } : s)),
+                    standupResponses: state.standupResponses.map((r) =>
+                      r.standup_id === id ? { ...r, standup_id: newDbId } : r
+                    ),
+                  }));
+                }
+              })
+              .catch((err) => console.warn('Supabase standup insert:', err));
+          }
+        }
+      },
+
       submitStandupResponse: (responseData) => {
+        const activeStandup = get().standups.find((s) => s.id === responseData.standup_id);
+        const cutoff = activeStandup?.cutoff_time || '10:30';
+        const now = new Date();
+        const [cHours, cMinutes] = cutoff.split(':').map(Number);
+        const cutoffDate = new Date();
+        cutoffDate.setHours(cHours, cMinutes, 0, 0);
+
+        const isPastCutoff = now.getTime() > cutoffDate.getTime();
+        const status: 'submitted' | 'missed' = isPastCutoff ? 'missed' : 'submitted';
+
+        const localResponseId = generateUUID();
         const newResponse: StandupResponse = {
           ...responseData,
-          id: 'sr-' + Date.now(),
+          id: localResponseId,
+          status,
           submitted_at: new Date().toISOString(),
         };
 
@@ -667,15 +820,35 @@ export const useDataStore = create<DataState>()(
           ],
         }));
 
-        if (supabase && isSupabaseConfigured) {
-          supabase.from('standup_responses').upsert({
-            standup_id: responseData.standup_id,
-            employee_id: responseData.employee_id,
-            yesterday_work: responseData.yesterday_work,
-            today_plan: responseData.today_plan,
-            blockers: responseData.blockers,
-            action_items: responseData.action_items,
-          }).then();
+        if (supabase && isSupabaseConfigured && isValidUUID(responseData.standup_id) && isValidUUID(responseData.employee_id)) {
+          Promise.resolve(
+            supabase
+              .from('standup_responses')
+              .upsert(
+                {
+                  standup_id: responseData.standup_id,
+                  employee_id: responseData.employee_id,
+                  yesterday_work: responseData.yesterday_work,
+                  today_plan: responseData.today_plan,
+                  blockers: responseData.blockers,
+                  status: newResponse.status,
+                  action_items: responseData.action_items,
+                },
+                { onConflict: 'standup_id,employee_id' }
+              )
+              .select()
+              .single()
+          )
+            .then((res: any) => {
+              if (res?.data?.id) {
+                set((state) => ({
+                  standupResponses: state.standupResponses.map((r) =>
+                    r.id === localResponseId ? { ...r, id: res.data.id } : r
+                  ),
+                }));
+              }
+            })
+            .catch((err: any) => console.warn('Supabase standup response upsert:', err?.message || err));
         }
 
         return newResponse;

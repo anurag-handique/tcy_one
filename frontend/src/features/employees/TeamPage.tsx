@@ -35,11 +35,16 @@ export function TeamPage() {
   const { profiles, departments, designations, createEmployeeAccount, addDepartment, updateProfileData, deleteProfile } = useDataStore();
   const { currentUser, activeRole } = useAuthStore();
 
-  // Strict check: ONLY Super Admin is allowed to create, edit & remove employees & departments
+  // Permission checks: Super Admin and Admin can create, edit & manage employees & departments
   const isSuperAdmin =
     activeRole === 'super_admin' ||
     currentUser?.role === 'super_admin' ||
     currentUser?.email === 'info@thecodeyogi.com';
+
+  const canManageTeam =
+    isSuperAdmin ||
+    activeRole === 'admin' ||
+    currentUser?.role === 'admin';
 
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedDept, setSelectedDept] = React.useState('all');
@@ -96,8 +101,8 @@ export function TeamPage() {
 
   // Open Edit Modal with profile data
   const handleOpenEdit = (profile: Profile) => {
-    if (!isSuperAdmin) {
-      toast.error('Unauthorized: Only Super Admin can edit employee details');
+    if (!canManageTeam) {
+      toast.error('Unauthorized: Only Admin or Super Admin can edit employee details');
       return;
     }
     setEditingProfile(profile);
@@ -161,8 +166,8 @@ export function TeamPage() {
 
   // Open Delete Confirmation
   const handleOpenDelete = (profile: Profile) => {
-    if (!isSuperAdmin) {
-      toast.error('Unauthorized: Only Super Admin can remove employees');
+    if (!canManageTeam) {
+      toast.error('Unauthorized: Only Admin or Super Admin can remove employees');
       return;
     }
     if (profile.email === 'info@thecodeyogi.com' || profile.id === currentUser.id) {
@@ -192,8 +197,8 @@ export function TeamPage() {
   // Submit Add Form
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isSuperAdmin) {
-      toast.error('Unauthorized: Only Super Admin can onboard employees');
+    if (!canManageTeam) {
+      toast.error('Unauthorized: Only Admin or Super Admin can onboard employees');
       return;
     }
 
@@ -252,8 +257,8 @@ export function TeamPage() {
   // Create Department
   const handleCreateDeptSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isSuperAdmin) {
-      toast.error('Unauthorized: Only Super Admin can create departments');
+    if (!canManageTeam) {
+      toast.error('Unauthorized: Only Admin or Super Admin can create departments');
       return;
     }
 
@@ -298,7 +303,7 @@ export function TeamPage() {
           </p>
         </div>
 
-        {isSuperAdmin ? (
+        {canManageTeam ? (
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -322,7 +327,7 @@ export function TeamPage() {
         ) : (
           <div className="text-[11px] font-mono text-slate-500 bg-[#0c0e15] px-3 py-1 rounded border border-[#1b202c] flex items-center gap-1.5">
             <Lock className="h-3.5 w-3.5 text-amber-400" />
-            <span>Employee management restricted to Super Admin</span>
+            <span>Employee management restricted to Administrators</span>
           </div>
         )}
       </div>
@@ -447,7 +452,7 @@ export function TeamPage() {
                   </span>
                 </div>
 
-                {isSuperAdmin ? (
+                {canManageTeam ? (
                   <div className="flex items-center gap-1">
                     <button
                       type="button"

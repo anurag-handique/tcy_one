@@ -556,7 +556,7 @@ export function SettingsPage() {
                           )}
                         >
                           {isOverride
-                            ? '★ URGENT WORKDAY'
+                            ? 'MANDATORY WORKDAY'
                             : statusInfo.isOff
                             ? 'OFFICIAL OFF'
                             : 'STANDARD WORKDAY'}

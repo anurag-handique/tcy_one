@@ -78,33 +78,38 @@ export function CreateTaskModal() {
           <DialogTitle>Create WorkHub Task</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
-          <div>
-            <label className="text-xs font-semibold text-slate-300">Task Title</label>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 pt-2">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between h-5">
+              <label className="text-xs font-semibold text-slate-300">Task Title</label>
+            </div>
             <Input
               placeholder="e.g. Implement user authentication flow"
               {...register('title')}
-              className="mt-1"
+              className="h-8"
             />
-            {errors.title && <p className="text-xs text-rose-400 mt-1">{errors.title.message}</p>}
+            {errors.title && <p className="text-xs text-rose-400 mt-0.5">{errors.title.message}</p>}
           </div>
 
-          <div>
-            <label className="text-xs font-semibold text-slate-300">Description & Acceptance Criteria</label>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between h-5">
+              <label className="text-xs font-semibold text-slate-300">Description & Acceptance Criteria</label>
+            </div>
             <Textarea
               placeholder="Provide context, acceptance criteria or links..."
               rows={3}
               {...register('description')}
-              className="mt-1"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-slate-300">Project</label>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between h-5">
+                <label className="text-xs font-semibold text-slate-300">Project</label>
+              </div>
               <select
                 {...register('project_id')}
-                className="mt-1 flex h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex h-8 w-full border border-[#1f2637] bg-[#0c1018] px-2.5 py-1 text-xs text-slate-100 font-mono focus:border-blue-500 focus:outline-none"
               >
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -114,15 +119,24 @@ export function CreateTaskModal() {
               </select>
             </div>
 
-            <div>
-              <label className="text-xs font-semibold text-slate-300">Assignee</label>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between h-5">
+                <label className="text-xs font-semibold text-slate-300">Assignee</label>
+                <button
+                  type="button"
+                  onClick={() => reset({ ...taskSchema.safeParse({}).data, assignee_id: currentUser.id } as any, { keepValues: true })}
+                  className="text-[11px] font-mono text-blue-400 hover:text-blue-300 hover:underline"
+                >
+                  Assign to Me
+                </button>
+              </div>
               <select
                 {...register('assignee_id')}
-                className="mt-1 flex h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex h-8 w-full border border-[#1f2637] bg-[#0c1018] px-2.5 py-1 text-xs text-slate-100 font-mono focus:border-blue-500 focus:outline-none"
               >
                 {profiles.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.full_name} ({p.designation_title || p.role.replace('_', ' ')})
+                    {p.full_name} {p.id === currentUser.id ? '(You)' : `(${p.designation_title || p.role.replace('_', ' ')})`}
                   </option>
                 ))}
               </select>
@@ -130,11 +144,13 @@ export function CreateTaskModal() {
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-slate-300">Priority</label>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between h-5">
+                <label className="text-xs font-semibold text-slate-300">Priority</label>
+              </div>
               <select
                 {...register('priority')}
-                className="mt-1 flex h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex h-8 w-full border border-[#1f2637] bg-[#0c1018] px-2.5 py-1 text-xs text-slate-100 font-mono focus:border-blue-500 focus:outline-none"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -143,11 +159,13 @@ export function CreateTaskModal() {
               </select>
             </div>
 
-            <div>
-              <label className="text-xs font-semibold text-slate-300">Status</label>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between h-5">
+                <label className="text-xs font-semibold text-slate-300">Status</label>
+              </div>
               <select
                 {...register('status')}
-                className="mt-1 flex h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex h-8 w-full border border-[#1f2637] bg-[#0c1018] px-2.5 py-1 text-xs text-slate-100 font-mono focus:border-blue-500 focus:outline-none"
               >
                 <option value="todo">To Do</option>
                 <option value="in_progress">In Progress</option>
@@ -156,20 +174,27 @@ export function CreateTaskModal() {
               </select>
             </div>
 
-            <div>
-              <label className="text-xs font-semibold text-slate-300">Due Date</label>
-              <Input type="date" {...register('due_date')} className="mt-1" />
+            <div className="space-y-1">
+              <div className="flex items-center justify-between h-5">
+                <label className="text-xs font-semibold text-slate-300">Due Date</label>
+              </div>
+              <Input type="date" {...register('due_date')} className="h-8" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-slate-300">Estimated Hours</label>
-              <Input type="number" step="0.5" {...register('estimated_hours')} className="mt-1" />
+            <div className="space-y-1">
+              <div className="flex items-center justify-between h-5">
+                <label className="text-xs font-semibold text-slate-300">Estimated Hours</label>
+              </div>
+              <Input type="number" step="0.5" {...register('estimated_hours')} className="h-8" />
             </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-300">Tags (comma separated)</label>
-              <Input placeholder="Frontend, API, Sprint 1" {...register('tags')} className="mt-1" />
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between h-5">
+                <label className="text-xs font-semibold text-slate-300">Tags (comma separated)</label>
+              </div>
+              <Input placeholder="Frontend, API, Sprint 1" {...register('tags')} className="h-8" />
             </div>
           </div>
 
