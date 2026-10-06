@@ -313,13 +313,17 @@ export function AttendancePage() {
                         {rec.work_mode}
                       </td>
                       <td className="py-2 px-3 font-mono text-[10px] text-slate-300 max-w-[150px] truncate" title={rec.punch_in_location || 'System Verified'}>
-                        <span className="text-blue-400">📍</span> {rec.punch_in_location || 'Desktop Verified'}
+                        <div className="flex items-center gap-1 truncate">
+                          <MapPin className="h-3 w-3 text-blue-400 shrink-0" />
+                          <span className="truncate">{rec.punch_in_location || 'Desktop Verified'}</span>
+                        </div>
                       </td>
                       <td className="py-2 px-3 font-mono text-[10px] text-slate-400 max-w-[150px] truncate" title={rec.punch_out_location || '—'}>
                         {rec.punch_out_location ? (
-                          <>
-                            <span className="text-rose-400">📍</span> {rec.punch_out_location}
-                          </>
+                          <div className="flex items-center gap-1 truncate">
+                            <MapPin className="h-3 w-3 text-rose-400 shrink-0" />
+                            <span className="truncate">{rec.punch_out_location}</span>
+                          </div>
                         ) : (
                           '—'
                         )}
@@ -393,8 +397,9 @@ export function AttendancePage() {
                         </td>
                         <td className="py-2 px-3 font-mono text-[10px] text-slate-300 max-w-[160px] truncate" title={att?.punch_in_location || 'Not clocked in'}>
                           {att?.punch_in_location ? (
-                            <span className="flex items-center gap-1">
-                              <span className="text-blue-400">📍</span> {att.punch_in_location}
+                            <span className="flex items-center gap-1 truncate">
+                              <MapPin className="h-3 w-3 text-blue-400 shrink-0" />
+                              <span className="truncate">{att.punch_in_location}</span>
                             </span>
                           ) : (
                             <span className="text-slate-500">—</span>

@@ -23,6 +23,55 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { toast } from 'sonner';
 
+// Reverse geocode latitude and longitude to readable address text
+async function reverseGeocodeCoords(lat: number, lng: number): Promise<string> {
+  // Method 1: BigDataCloud Reverse Geocoding API (Fast, Free, Client-side CORS allowed)
+  try {
+    const res = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const parts = [
+        data.locality || data.localityInfo?.administrative?.[3]?.name || data.localityInfo?.administrative?.[2]?.name,
+        data.city || data.principalSubdivision,
+        data.countryName,
+      ].filter(Boolean);
+      if (parts.length > 0) {
+        return parts.join(', ');
+      }
+    }
+  } catch (e) {
+    console.warn('Reverse geocode primary API failed, trying fallback:', e);
+  }
+
+  // Method 2: OpenStreetMap Nominatim
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
+      { headers: { Accept: 'application/json' } }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data.address) {
+        const addr = data.address;
+        const parts = [
+          addr.suburb || addr.neighbourhood || addr.road,
+          addr.city || addr.town || addr.village || addr.county,
+          addr.state,
+          addr.country,
+        ].filter(Boolean);
+        if (parts.length > 0) return parts.join(', ');
+        if (data.display_name) return data.display_name.split(',').slice(0, 3).join(',');
+      }
+    }
+  } catch (e) {
+    console.warn('Reverse geocode fallback failed:', e);
+  }
+
+  return 'Local Workstation Location';
+}
+
 export function PunchLocationModal() {
   const { currentUser } = useAuthStore();
   const { clockIn, clockOut, attendancePolicy } = useDataStore();
@@ -36,9 +85,10 @@ export function PunchLocationModal() {
   const [customLocation, setCustomLocation] = React.useState('');
   const [notes, setNotes] = React.useState('');
 
-  // GPS State
+  // GPS & Address State
   const [gpsStatus, setGpsStatus] = React.useState<'detecting' | 'detected' | 'denied' | 'unsupported'>('detecting');
   const [coords, setCoords] = React.useState<string | null>(null);
+  const [addressText, setAddressText] = React.useState<string | null>(null);
   const [gpsAccuracy, setGpsAccuracy] = React.useState<string | null>(null);
 
   // Keep live time ticking
@@ -50,30 +100,39 @@ export function PunchLocationModal() {
     return () => clearInterval(timer);
   }, [activePunchModalOpen]);
 
-  // Detect location on modal open
+  // Detect location and reverse-geocode to address
   const detectLocation = React.useCallback(() => {
     setGpsStatus('detecting');
     setCoords(null);
+    setAddressText(null);
 
     if (!navigator.geolocation) {
       setGpsStatus('unsupported');
-      setCoords('System Desktop Location');
+      setAddressText('System Desktop Location');
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude.toFixed(4);
-        const lng = pos.coords.longitude.toFixed(4);
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
         const acc = Math.round(pos.coords.accuracy);
-        setCoords(`${lat}°, ${lng}°`);
+        setCoords(`${lat.toFixed(4)}°, ${lng.toFixed(4)}°`);
         setGpsAccuracy(`±${acc}m`);
         setGpsStatus('detected');
+
+        // Reverse geocode to real readable address
+        try {
+          const resolvedAddress = await reverseGeocodeCoords(lat, lng);
+          setAddressText(resolvedAddress);
+        } catch {
+          setAddressText('Local Workstation Location');
+        }
       },
       (err) => {
         console.warn('Geolocation prompt response:', err.message);
         setGpsStatus('denied');
-        setCoords('Desktop App Workstation (Local IP)');
+        setAddressText('Desktop Workstation (Local)');
       },
       { timeout: 8000, enableHighAccuracy: true }
     );
@@ -98,8 +157,10 @@ export function PunchLocationModal() {
         ? 'Remote / Work From Home'
         : 'Client Site / Field';
 
-    const geoTag = coords ? ` [Geo: ${coords}]` : '';
-    const fullLocationString = `${finalLocationName}${geoTag}`;
+    const locationDetail = addressText || (coords ? coords : '');
+    const fullLocationString = locationDetail
+      ? `${finalLocationName} • ${locationDetail}`
+      : finalLocationName;
 
     if (isPunchIn) {
       const rec = clockIn(currentUser.id, workMode, notes.trim() || undefined, fullLocationString);
@@ -175,8 +236,8 @@ export function PunchLocationModal() {
                 />
                 <span className="text-white font-medium">
                   {gpsStatus === 'detecting'
-                    ? 'Acquiring GPS / System coordinates...'
-                    : coords || 'System Location'}
+                    ? 'Acquiring GPS / Geocoding address...'
+                    : addressText || coords || 'System Location'}
                 </span>
               </div>
 
