@@ -16,16 +16,31 @@ import {
   CheckCircle2,
   Users2,
   Award,
+  Palette,
+  Sparkles,
+  Keyboard,
+  Command,
+  Monitor,
+  Type,
+  Gauge,
+  Sliders,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
-import { useUIStore } from '@/stores/uiStore';
+import { useUIStore, DensityMode, ThemePreset, AccentColor, FontFamily } from '@/stores/uiStore';
 import { formatDate, isSaturdayOffDay, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { toast } from 'sonner';
 
-type SettingsTab = 'attendance' | 'saturdays' | 'appearance' | 'database' | 'organization';
+type SettingsTab =
+  | 'attendance'
+  | 'saturdays'
+  | 'density'
+  | 'appearance'
+  | 'shortcuts'
+  | 'database'
+  | 'organization';
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -39,7 +54,24 @@ export function SettingsPage() {
     designations,
     profiles,
   } = useDataStore();
-  const { densityMode, setDensityMode } = useUIStore();
+  const {
+    densityMode,
+    setDensityMode,
+    themePreset,
+    setThemePreset,
+    accentColor,
+    setAccentColor,
+    fontFamily,
+    setFontFamily,
+    reducedMotion,
+    setReducedMotion,
+    setShortcutsModalOpen,
+    setTaskModalOpen,
+    setLeaveModalOpen,
+    setStandupModalOpen,
+    setPunchModalOpen,
+    toggleSidebar,
+  } = useUIStore();
 
   const [activeTab, setActiveTab] = React.useState<SettingsTab>('attendance');
 
@@ -126,6 +158,9 @@ export function SettingsPage() {
 
   const activeOverridesCount = attendancePolicy.working_saturdays_override?.length || 0;
 
+  const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const modKey = isMac ? '⌘' : 'Ctrl';
+
   return (
     <div className="space-y-3 max-w-5xl">
       {/* Desktop App Header Toolbar */}
@@ -201,6 +236,20 @@ export function SettingsPage() {
 
         <button
           type="button"
+          onClick={() => setActiveTab('density')}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
+            activeTab === 'density'
+              ? 'bg-blue-600 text-white border-blue-500'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#121724]'
+          )}
+        >
+          <Layers className="h-3 w-3" />
+          <span>Display & Density</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab('appearance')}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
@@ -209,8 +258,22 @@ export function SettingsPage() {
               : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#121724]'
           )}
         >
-          <Layers className="h-3 w-3" />
-          <span>Display & Density</span>
+          <Palette className="h-3 w-3" />
+          <span>Themes & Styling</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('shortcuts')}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
+            activeTab === 'shortcuts'
+              ? 'bg-blue-600 text-white border-blue-500'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#121724]'
+          )}
+        >
+          <Keyboard className="h-3 w-3" />
+          <span>Shortcuts</span>
         </button>
 
         {isSuperAdminOrAdmin && (
@@ -542,7 +605,7 @@ export function SettingsPage() {
       {/* ===================================================================== */}
       {/* TAB 3: DISPLAY & DENSITY */}
       {/* ===================================================================== */}
-      {activeTab === 'appearance' && (
+      {activeTab === 'density' && (
         <div className="space-y-3">
           <div className="border border-[#1b2230] bg-[#0c1018] p-3.5 space-y-3">
             <div className="flex items-center justify-between border-b border-[#18202d] pb-2">
@@ -551,34 +614,41 @@ export function SettingsPage() {
                 <span className="text-xs font-bold font-mono uppercase text-white">Display Layout Density</span>
               </div>
               <span className="text-[9px] font-mono px-1.5 py-0.2 border border-blue-500/20 bg-blue-500/10 text-blue-400">
-                PREFERENCE
+                ACTIVE: {densityMode.toUpperCase()}
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+            <p className="text-xs text-slate-400 font-sans">
+              Choose your preferred interface density. Density adjusts table row heights, grid gaps, padding, and information compactness across all workspaces.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
               {/* Comfortable Mode Card */}
               <div
                 onClick={() => {
                   setDensityMode('comfortable');
-                  toast.success('Switched to Comfortable');
+                  toast.success('Switched to Comfortable spacing');
                 }}
                 className={cn(
                   'p-3 border cursor-pointer transition-all space-y-2',
                   densityMode === 'comfortable'
-                    ? 'border-blue-500 bg-blue-950/20'
+                    ? 'border-blue-500 bg-blue-950/20 shadow-md'
                     : 'border-[#1b2230] bg-[#080b11] hover:border-[#2a3449]'
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-white">Comfortable View</span>
+                  <span className="text-xs font-bold text-white">Comfortable</span>
                   {densityMode === 'comfortable' && <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />}
                 </div>
                 <p className="text-[10px] text-slate-400 leading-normal">
-                  Spacious table cell padding and standard spacing.
+                  Spacious desktop margins, standard row heights, and generous card padding.
                 </p>
-                <div className="pt-2 border-t border-[#18202d] space-y-1 font-mono text-[9px] text-slate-500">
-                  <div className="h-2.5 bg-blue-500/20 w-3/4"></div>
-                  <div className="h-2.5 bg-blue-500/10 w-1/2"></div>
+                <div className="pt-2 border-t border-[#18202d] space-y-1.5 font-mono text-[9px]">
+                  <div className="flex items-center justify-between p-1.5 bg-[#121622] border border-[#202838]">
+                    <span className="text-slate-300">Standard Row</span>
+                    <span className="text-emerald-400 font-bold">38px</span>
+                  </div>
+                  <div className="h-2 bg-blue-500/20 w-full"></div>
                 </div>
               </div>
 
@@ -591,7 +661,7 @@ export function SettingsPage() {
                 className={cn(
                   'p-3 border cursor-pointer transition-all space-y-2',
                   densityMode === 'compact'
-                    ? 'border-blue-500 bg-blue-950/20'
+                    ? 'border-blue-500 bg-blue-950/20 shadow-md'
                     : 'border-[#1b2230] bg-[#080b11] hover:border-[#2a3449]'
                 )}
               >
@@ -600,11 +670,43 @@ export function SettingsPage() {
                   {densityMode === 'compact' && <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />}
                 </div>
                 <p className="text-[10px] text-slate-400 leading-normal">
-                  High data density with condensed row height.
+                  Condensed table row heights, tight grid gaps, and maximum data per viewport.
                 </p>
-                <div className="pt-2 border-t border-[#18202d] space-y-0.5 font-mono text-[9px] text-slate-500">
-                  <div className="h-2 bg-blue-500/20 w-full"></div>
-                  <div className="h-2 bg-blue-500/10 w-4/5"></div>
+                <div className="pt-2 border-t border-[#18202d] space-y-1 font-mono text-[9px]">
+                  <div className="flex items-center justify-between p-1 bg-[#121622] border border-[#202838]">
+                    <span className="text-slate-300">Compact Row</span>
+                    <span className="text-blue-400 font-bold">28px</span>
+                  </div>
+                  <div className="h-1.5 bg-blue-500/20 w-full"></div>
+                </div>
+              </div>
+
+              {/* Ultra Compact Card */}
+              <div
+                onClick={() => {
+                  setDensityMode('ultra');
+                  toast.success('Switched to Ultra-Compact CLI mode');
+                }}
+                className={cn(
+                  'p-3 border cursor-pointer transition-all space-y-2',
+                  densityMode === 'ultra'
+                    ? 'border-blue-500 bg-blue-950/20 shadow-md'
+                    : 'border-[#1b2230] bg-[#080b11] hover:border-[#2a3449]'
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white">Ultra-Compact CLI</span>
+                  {densityMode === 'ultra' && <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />}
+                </div>
+                <p className="text-[10px] text-slate-400 leading-normal">
+                  Maximum screen efficiency with micro padding and developer monospace styling.
+                </p>
+                <div className="pt-2 border-t border-[#18202d] space-y-0.5 font-mono text-[9px]">
+                  <div className="flex items-center justify-between px-1 py-0.5 bg-[#121622] border border-[#202838]">
+                    <span className="text-slate-300">Ultra Row</span>
+                    <span className="text-purple-400 font-bold">22px</span>
+                  </div>
+                  <div className="h-1 bg-purple-500/20 w-full"></div>
                 </div>
               </div>
             </div>
@@ -613,7 +715,351 @@ export function SettingsPage() {
       )}
 
       {/* ===================================================================== */}
-      {/* TAB 4: DATABASE & CLOUD STORAGE */}
+      {/* TAB 4: THEMES & VISUAL STYLING */}
+      {/* ===================================================================== */}
+      {activeTab === 'appearance' && (
+        <div className="space-y-3">
+          {/* 1. Theme Presets */}
+          <div className="border border-[#1b2230] bg-[#0c1018] p-3.5 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#18202d] pb-2">
+              <div className="flex items-center gap-2">
+                <Palette className="h-3.5 w-3.5 text-blue-400" />
+                <span className="text-xs font-bold font-mono uppercase text-white">Desktop Theme Presets</span>
+              </div>
+              <span className="text-[9px] font-mono px-1.5 py-0.2 border border-blue-500/20 bg-blue-500/10 text-blue-400">
+                ACTIVE: {themePreset.toUpperCase()}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 pt-1">
+              {/* Obsidian Theme */}
+              <div
+                onClick={() => {
+                  setThemePreset('obsidian');
+                  toast.success('Theme applied: Obsidian Dark');
+                }}
+                className={cn(
+                  'p-3 border cursor-pointer transition-all space-y-2 relative overflow-hidden',
+                  themePreset === 'obsidian'
+                    ? 'border-blue-500 bg-[#0e121a] ring-1 ring-blue-500/50'
+                    : 'border-[#1b2230] bg-[#0b0d13] hover:border-[#2a3449]'
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white">Obsidian Dark</span>
+                  {themePreset === 'obsidian' && <CheckCircle2 className="h-3 w-3 text-blue-400" />}
+                </div>
+                <div className="h-6 w-full bg-[#0b0d13] border border-[#1b202c] flex items-center px-1.5 gap-1">
+                  <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                  <div className="h-1.5 w-8 bg-slate-700"></div>
+                </div>
+                <p className="text-[9px] text-slate-400 font-mono">Default Charcoal</p>
+              </div>
+
+              {/* Midnight Navy Theme */}
+              <div
+                onClick={() => {
+                  setThemePreset('midnight');
+                  toast.success('Theme applied: Midnight Navy');
+                }}
+                className={cn(
+                  'p-3 border cursor-pointer transition-all space-y-2 relative overflow-hidden',
+                  themePreset === 'midnight'
+                    ? 'border-cyan-500 bg-[#080d1a] ring-1 ring-cyan-500/50'
+                    : 'border-[#152238] bg-[#060913] hover:border-[#203658]'
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-cyan-300">Midnight Navy</span>
+                  {themePreset === 'midnight' && <CheckCircle2 className="h-3 w-3 text-cyan-400" />}
+                </div>
+                <div className="h-6 w-full bg-[#060913] border border-[#152238] flex items-center px-1.5 gap-1">
+                  <div className="h-2 w-2 rounded-full bg-cyan-400"></div>
+                  <div className="h-1.5 w-8 bg-cyan-950"></div>
+                </div>
+                <p className="text-[9px] text-slate-400 font-mono">Deep Ocean Blue</p>
+              </div>
+
+              {/* Matrix Zinc Theme */}
+              <div
+                onClick={() => {
+                  setThemePreset('matrix');
+                  toast.success('Theme applied: Matrix Zinc');
+                }}
+                className={cn(
+                  'p-3 border cursor-pointer transition-all space-y-2 relative overflow-hidden',
+                  themePreset === 'matrix'
+                    ? 'border-emerald-500 bg-[#060a08] ring-1 ring-emerald-500/50'
+                    : 'border-[#122419] bg-[#040705] hover:border-[#1d3d2a]'
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-300">Matrix Zinc</span>
+                  {themePreset === 'matrix' && <CheckCircle2 className="h-3 w-3 text-emerald-400" />}
+                </div>
+                <div className="h-6 w-full bg-[#040705] border border-[#122419] flex items-center px-1.5 gap-1">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
+                  <div className="h-1.5 w-8 bg-emerald-950"></div>
+                </div>
+                <p className="text-[9px] text-slate-400 font-mono">High Contrast Green</p>
+              </div>
+
+              {/* Deep Amethyst Theme */}
+              <div
+                onClick={() => {
+                  setThemePreset('amethyst');
+                  toast.success('Theme applied: Deep Amethyst');
+                }}
+                className={cn(
+                  'p-3 border cursor-pointer transition-all space-y-2 relative overflow-hidden',
+                  themePreset === 'amethyst'
+                    ? 'border-purple-500 bg-[#0f0a1b] ring-1 ring-purple-500/50'
+                    : 'border-[#241638] bg-[#0a0612] hover:border-[#382258]'
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-purple-300">Deep Amethyst</span>
+                  {themePreset === 'amethyst' && <CheckCircle2 className="h-3 w-3 text-purple-400" />}
+                </div>
+                <div className="h-6 w-full bg-[#0a0612] border border-[#241638] flex items-center px-1.5 gap-1">
+                  <div className="h-2 w-2 rounded-full bg-purple-500"></div>
+                  <div className="h-1.5 w-8 bg-purple-950"></div>
+                </div>
+                <p className="text-[9px] text-slate-400 font-mono">Royal Violet</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Accent Color Palette */}
+          <div className="border border-[#1b2230] bg-[#0c1018] p-3.5 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#18202d] pb-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-blue-400" />
+                <span className="text-xs font-bold font-mono uppercase text-white">Accent Color Palette</span>
+              </div>
+              <span className="text-[9px] font-mono px-1.5 py-0.2 border border-blue-500/20 bg-blue-500/10 text-blue-400">
+                ACTIVE: {accentColor.toUpperCase()}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-1">
+              {[
+                { id: 'blue', label: 'Electric Blue', color: 'bg-blue-600', border: 'border-blue-500' },
+                { id: 'emerald', label: 'Emerald Green', color: 'bg-emerald-600', border: 'border-emerald-500' },
+                { id: 'violet', label: 'Royal Violet', color: 'bg-violet-600', border: 'border-violet-500' },
+                { id: 'amber', label: 'Amber Gold', color: 'bg-amber-600', border: 'border-amber-500' },
+                { id: 'rose', label: 'Crimson Rose', color: 'bg-rose-600', border: 'border-rose-500' },
+                { id: 'cyan', label: 'Cyber Cyan', color: 'bg-cyan-600', border: 'border-cyan-500' },
+              ].map((accent) => (
+                <button
+                  key={accent.id}
+                  type="button"
+                  onClick={() => {
+                    setAccentColor(accent.id as AccentColor);
+                    toast.success(`Accent updated to ${accent.label}`);
+                  }}
+                  className={cn(
+                    'p-2.5 border flex flex-col items-center gap-1.5 transition-all cursor-pointer',
+                    accentColor === accent.id
+                      ? `${accent.border} bg-[#121622] ring-1 ring-white/20`
+                      : 'border-[#1b202d] bg-[#080b11] hover:border-[#252f44]'
+                  )}
+                >
+                  <div className={cn('h-5 w-5 rounded-full border border-white/20', accent.color)} />
+                  <span className="text-[10px] font-mono text-slate-300 truncate w-full text-center">
+                    {accent.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 3. Typography & Motion Preferences */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Font Family */}
+            <div className="border border-[#1b2230] bg-[#0c1018] p-3.5 space-y-2.5">
+              <div className="flex items-center gap-2 border-b border-[#18202d] pb-2">
+                <Type className="h-3.5 w-3.5 text-blue-400" />
+                <span className="text-xs font-bold font-mono uppercase text-white">Interface Typography</span>
+              </div>
+              <div className="space-y-1.5 pt-1">
+                {[
+                  { id: 'sans', label: 'Inter Sans (Modern Desktop)', desc: 'Clean, legible UI typography' },
+                  { id: 'mono', label: 'JetBrains Mono (Code/Terminal)', desc: 'Full monospace developer feel' },
+                  { id: 'system', label: 'System Native Font', desc: 'OS default native rendering' },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => {
+                      setFontFamily(f.id as FontFamily);
+                      toast.success(`Font set to ${f.label}`);
+                    }}
+                    className={cn(
+                      'w-full p-2 border flex items-center justify-between text-left transition-all',
+                      fontFamily === f.id
+                        ? 'border-blue-500 bg-blue-950/20'
+                        : 'border-[#18202d] bg-[#080b11] hover:border-[#28344c]'
+                    )}
+                  >
+                    <div>
+                      <div className="text-xs font-semibold text-white">{f.label}</div>
+                      <div className="text-[9px] text-slate-500 font-mono">{f.desc}</div>
+                    </div>
+                    {fontFamily === f.id && <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Performance & Animation */}
+            <div className="border border-[#1b2230] bg-[#0c1018] p-3.5 space-y-2.5">
+              <div className="flex items-center gap-2 border-b border-[#18202d] pb-2">
+                <Gauge className="h-3.5 w-3.5 text-blue-400" />
+                <span className="text-xs font-bold font-mono uppercase text-white">Rendering & Performance</span>
+              </div>
+              <div className="pt-1 space-y-2">
+                <div
+                  onClick={() => {
+                    setReducedMotion(!reducedMotion);
+                    toast.success(
+                      !reducedMotion ? 'Reduced motion enabled (Instant UI)' : 'Transitions restored'
+                    );
+                  }}
+                  className={cn(
+                    'p-3 border cursor-pointer flex items-center justify-between transition-all',
+                    reducedMotion
+                      ? 'border-emerald-500 bg-emerald-950/20'
+                      : 'border-[#18202d] bg-[#080b11] hover:border-[#28344c]'
+                  )}
+                >
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-semibold text-white">Instant Rendering (Reduced Motion)</div>
+                    <div className="text-[10px] text-slate-400">
+                      Disables animation delays for instant snappy clicks
+                    </div>
+                  </div>
+                  <div
+                    className={cn(
+                      'px-2 py-0.5 text-[9px] font-mono font-bold border uppercase',
+                      reducedMotion
+                        ? 'bg-emerald-500 text-black border-emerald-400'
+                        : 'bg-[#141926] text-slate-400 border-[#222a3c]'
+                    )}
+                  >
+                    {reducedMotion ? 'ENABLED' : 'DISABLED'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* TAB 5: KEYBOARD SHORTCUTS HUB */}
+      {/* ===================================================================== */}
+      {activeTab === 'shortcuts' && (
+        <div className="space-y-3">
+          <div className="border border-[#1b2230] bg-[#0c1018] p-3.5 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#18202d] pb-2">
+              <div className="flex items-center gap-2">
+                <Keyboard className="h-3.5 w-3.5 text-blue-400" />
+                <span className="text-xs font-bold font-mono uppercase text-white">Keyboard Shortcuts Directory</span>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setShortcutsModalOpen(true)}
+                className="h-6.5 text-[10px] bg-blue-600 hover:bg-blue-500 text-white font-mono px-2.5 gap-1 rounded-none"
+              >
+                <span>Launch Quick Overlay</span>
+                <kbd className="px-1 bg-white/20 text-white font-bold">?</kbd>
+              </Button>
+            </div>
+
+            <p className="text-xs text-slate-400 font-sans">
+              Work faster with global desktop keybindings. Hotkeys are available throughout the application (excluding inside text input fields).
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              {/* Quick Actions */}
+              <div className="p-3 bg-[#080b11] border border-[#18202d] space-y-2">
+                <div className="text-[10px] font-bold font-mono uppercase text-blue-400 border-b border-[#141925] pb-1">
+                  Global Action Hotkeys
+                </div>
+                <div className="space-y-1.5 text-xs font-mono">
+                  {[
+                    { keys: [modKey, 'K'], label: 'Command Palette & Search', action: () => useUIStore.getState().setCommandPaletteOpen(true) },
+                    { keys: [modKey, 'B'], label: 'Toggle Sidebar Collapse', action: toggleSidebar },
+                    { keys: ['?'], label: 'Shortcuts Cheat Sheet', action: () => setShortcutsModalOpen(true) },
+                    { keys: [modKey, 'Shift', 'P'], label: 'Punch In / Clock Out', action: () => setPunchModalOpen(true) },
+                    { keys: [modKey, 'Shift', 'T'], label: 'Create New Task', action: () => setTaskModalOpen(true) },
+                    { keys: [modKey, 'Shift', 'L'], label: 'Apply for Leave', action: () => setLeaveModalOpen(true) },
+                    { keys: [modKey, 'Shift', 'S'], label: 'Submit Daily Standup', action: () => setStandupModalOpen(true) },
+                  ].map((s) => (
+                    <div
+                      key={s.label}
+                      className="flex items-center justify-between p-1.5 bg-[#0e121a] border border-[#1b2230] hover:border-[#28344a] transition-colors"
+                    >
+                      <span className="text-[11px] text-slate-300">{s.label}</span>
+                      <div className="flex items-center gap-1">
+                        {s.keys.map((k, i) => (
+                          <kbd
+                            key={i}
+                            className="px-1.5 py-0.5 bg-[#141926] text-blue-300 border border-[#252f44] text-[10px] font-bold font-mono"
+                          >
+                            {k}
+                          </kbd>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Navigation Chords */}
+              <div className="p-3 bg-[#080b11] border border-[#18202d] space-y-2">
+                <div className="text-[10px] font-bold font-mono uppercase text-emerald-400 border-b border-[#141925] pb-1">
+                  Two-Key Chords (Press G, then Key)
+                </div>
+                <div className="space-y-1.5 text-xs font-mono">
+                  {[
+                    { chord: ['G', 'D'], label: 'Dashboard / My Day', path: '/' },
+                    { chord: ['G', 'A'], label: 'Attendance & Punches', path: '/attendance' },
+                    { chord: ['G', 'T'], label: 'Tasks Board', path: '/tasks' },
+                    { chord: ['G', 'P'], label: 'Projects Roster', path: '/projects' },
+                    { chord: ['G', 'L'], label: 'Leave & Holidays', path: '/leave' },
+                    { chord: ['G', 'E'], label: 'Employee Directory', path: '/team' },
+                    { chord: ['G', 'O'], label: 'Organization Structure', path: '/organization' },
+                    { chord: ['G', 'S'], label: 'System Preferences', path: '/settings' },
+                  ].map((c) => (
+                    <div
+                      key={c.label}
+                      onClick={() => navigate(c.path)}
+                      className="flex items-center justify-between p-1.5 bg-[#0e121a] border border-[#1b2230] hover:border-[#28344a] cursor-pointer transition-colors"
+                    >
+                      <span className="text-[11px] text-slate-300">{c.label}</span>
+                      <div className="flex items-center gap-1">
+                        {c.chord.map((k, i) => (
+                          <kbd
+                            key={i}
+                            className="px-1.5 py-0.5 bg-[#141926] text-emerald-300 border border-[#252f44] text-[10px] font-bold font-mono"
+                          >
+                            {k}
+                          </kbd>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* TAB 6: DATABASE & CLOUD STORAGE (Admin only) */}
       {/* ===================================================================== */}
       {activeTab === 'database' && isSuperAdminOrAdmin && (
         <div className="space-y-3">
@@ -661,7 +1107,7 @@ export function SettingsPage() {
       )}
 
       {/* ===================================================================== */}
-      {/* TAB 5: ORGANIZATION STRUCTURE SHORTCUT */}
+      {/* TAB 7: ORGANIZATION STRUCTURE SHORTCUT */}
       {/* ===================================================================== */}
       {activeTab === 'organization' && (
         <div className="space-y-3">

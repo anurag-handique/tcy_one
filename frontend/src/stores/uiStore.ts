@@ -1,10 +1,20 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export type DensityMode = 'comfortable' | 'compact' | 'ultra';
+export type ThemePreset = 'obsidian' | 'midnight' | 'matrix' | 'amethyst';
+export type AccentColor = 'blue' | 'emerald' | 'violet' | 'amber' | 'rose' | 'cyan';
+export type FontFamily = 'sans' | 'mono' | 'system';
+
 interface UIState {
   sidebarCollapsed: boolean;
   commandPaletteOpen: boolean;
-  densityMode: 'comfortable' | 'compact';
+  shortcutsModalOpen: boolean;
+  densityMode: DensityMode;
+  themePreset: ThemePreset;
+  accentColor: AccentColor;
+  fontFamily: FontFamily;
+  reducedMotion: boolean;
   networkStatus: 'online' | 'reconnecting' | 'offline';
   activeLeaveModalOpen: boolean;
   activeTaskModalOpen: boolean;
@@ -15,7 +25,12 @@ interface UIState {
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
-  setDensityMode: (mode: 'comfortable' | 'compact') => void;
+  setShortcutsModalOpen: (open: boolean) => void;
+  setDensityMode: (mode: DensityMode) => void;
+  setThemePreset: (preset: ThemePreset) => void;
+  setAccentColor: (accent: AccentColor) => void;
+  setFontFamily: (font: FontFamily) => void;
+  setReducedMotion: (enabled: boolean) => void;
   setNetworkStatus: (status: 'online' | 'reconnecting' | 'offline') => void;
   setLeaveModalOpen: (open: boolean) => void;
   setTaskModalOpen: (open: boolean) => void;
@@ -29,7 +44,12 @@ export const useUIStore = create<UIState>()(
     (set) => ({
       sidebarCollapsed: false,
       commandPaletteOpen: false,
+      shortcutsModalOpen: false,
       densityMode: 'comfortable',
+      themePreset: 'obsidian',
+      accentColor: 'blue',
+      fontFamily: 'sans',
+      reducedMotion: false,
       networkStatus: 'online',
       activeLeaveModalOpen: false,
       activeTaskModalOpen: false,
@@ -41,7 +61,12 @@ export const useUIStore = create<UIState>()(
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+      setShortcutsModalOpen: (open) => set({ shortcutsModalOpen: open }),
       setDensityMode: (mode) => set({ densityMode: mode }),
+      setThemePreset: (preset) => set({ themePreset: preset }),
+      setAccentColor: (accent) => set({ accentColor: accent }),
+      setFontFamily: (font) => set({ fontFamily: font }),
+      setReducedMotion: (enabled) => set({ reducedMotion: enabled }),
       setNetworkStatus: (status) => set({ networkStatus: status }),
       setLeaveModalOpen: (open) => set({ activeLeaveModalOpen: open }),
       setTaskModalOpen: (open) => set({ activeTaskModalOpen: open }),
@@ -54,6 +79,10 @@ export const useUIStore = create<UIState>()(
       partialize: (state) => ({
         sidebarCollapsed: state.sidebarCollapsed,
         densityMode: state.densityMode,
+        themePreset: state.themePreset,
+        accentColor: state.accentColor,
+        fontFamily: state.fontFamily,
+        reducedMotion: state.reducedMotion,
       }),
     }
   )

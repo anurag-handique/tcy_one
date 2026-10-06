@@ -130,3 +130,143 @@
   font-family: 'JetBrains Mono', monospace;
   font-variant-numeric: tabular-nums;
 }
+
+/* ========================================================================= */
+/* DENSITY MODES */
+/* ========================================================================= */
+[data-density="comfortable"] {
+  --density-pad: 1.25rem;
+  --density-gap: 0.75rem;
+  --density-btn-h: 2rem;
+  --density-row-py: 0.625rem;
+}
+
+[data-density="compact"] {
+  --density-pad: 0.75rem;
+  --density-gap: 0.5rem;
+  --density-btn-h: 1.625rem;
+  --density-row-py: 0.35rem;
+}
+
+[data-density="compact"] main {
+  padding: 0.75rem !important;
+}
+
+[data-density="compact"] .table-row-dense {
+  padding-top: 0.3rem !important;
+  padding-bottom: 0.3rem !important;
+}
+
+[data-density="ultra"] {
+  --density-pad: 0.4rem;
+  --density-gap: 0.35rem;
+  --density-btn-h: 1.375rem;
+  --density-row-py: 0.2rem;
+}
+
+[data-density="ultra"] main {
+  padding: 0.4rem !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}
+
+[data-density="ultra"] .table-row-dense {
+  padding-top: 0.15rem !important;
+  padding-bottom: 0.15rem !important;
+}
+
+/* ========================================================================= */
+/* THEME PRESETS */
+/* ========================================================================= */
+[data-theme="obsidian"] {
+  --bg-app: #0b0d13;
+  --bg-surface: #0f1219;
+  --border-app: #1e2430;
+}
+
+[data-theme="midnight"] {
+  --bg-app: #060913;
+  --bg-surface: #0a0e1c;
+  --border-app: #152238;
+}
+
+[data-theme="midnight"] body,
+[data-theme="midnight"] .app-viewport-bg {
+  background-color: #060913 !important;
+}
+
+[data-theme="matrix"] {
+  --bg-app: #040705;
+  --bg-surface: #070e0a;
+  --border-app: #122419;
+}
+
+[data-theme="matrix"] body,
+[data-theme="matrix"] .app-viewport-bg {
+  background-color: #040705 !important;
+}
+
+[data-theme="amethyst"] {
+  --bg-app: #0a0612;
+  --bg-surface: #100a1c;
+  --border-app: #241638;
+}
+
+[data-theme="amethyst"] body,
+[data-theme="amethyst"] .app-viewport-bg {
+  background-color: #0a0612 !important;
+}
+
+/* ========================================================================= */
+/* ACCENT PALETTES */
+/* ========================================================================= */
+[data-accent="blue"] {
+  --primary: 217 90% 55%;
+  --ring: 217 90% 55%;
+}
+
+[data-accent="emerald"] {
+  --primary: 158 80% 40%;
+  --ring: 158 80% 40%;
+}
+
+[data-accent="violet"] {
+  --primary: 262 83% 58%;
+  --ring: 262 83% 58%;
+}
+
+[data-accent="amber"] {
+  --primary: 38 92% 50%;
+  --ring: 38 92% 50%;
+}
+
+[data-accent="rose"] {
+  --primary: 346 84% 53%;
+  --ring: 346 84% 53%;
+}
+
+[data-accent="cyan"] {
+  --primary: 188 86% 45%;
+  --ring: 188 86% 45%;
+}
+
+/* ========================================================================= */
+/* FONT OVERRIDES */
+/* ========================================================================= */
+[data-font="mono"] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+}
+
+[data-font="system"] {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+/* ========================================================================= */
+/* REDUCED MOTION */
+/* ========================================================================= */
+[data-reduced-motion="true"] *,
+[data-reduced-motion="true"] *::before,
+[data-reduced-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}

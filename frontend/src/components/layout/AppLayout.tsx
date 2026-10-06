@@ -10,22 +10,20 @@ import { SubmitStandupModal } from '@/components/shared/SubmitStandupModal';
 import { ScheduleMeetingModal } from '@/components/shared/ScheduleMeetingModal';
 import { LoginModal } from '@/components/shared/LoginModal';
 import { PunchLocationModal } from '@/components/shared/PunchLocationModal';
+import { KeyboardShortcutsModal } from '@/components/shared/KeyboardShortcutsModal';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import { useUIStore } from '@/stores/uiStore';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { formatWorkingDuration } from '@/lib/utils';
 import {
   Minus,
   Square,
   X,
-  Wifi,
   Clock,
-  Sparkles,
+  Keyboard,
   Layers,
-  HelpCircle,
-  Command,
-  Database,
-  Building2,
+  Sparkles,
 } from 'lucide-react';
 
 export function AppLayout() {
@@ -33,6 +31,17 @@ export function AppLayout() {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
   const { attendance, tasks } = useDataStore();
+  const {
+    densityMode,
+    themePreset,
+    accentColor,
+    fontFamily,
+    reducedMotion,
+    setShortcutsModalOpen,
+  } = useUIStore();
+
+  // Initialize universal hotkeys listener
+  useKeyboardShortcuts();
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayAtt = attendance.find(
@@ -45,7 +54,14 @@ export function AppLayout() {
   ).length;
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#0b0d13] text-slate-200 font-sans select-none antialiased">
+    <div
+      data-density={densityMode}
+      data-theme={themePreset}
+      data-accent={accentColor}
+      data-font={fontFamily}
+      data-reduced-motion={reducedMotion ? 'true' : 'false'}
+      className="flex h-screen w-screen flex-col overflow-hidden bg-[#0b0d13] text-slate-200 font-sans select-none antialiased app-viewport-bg"
+    >
       {/* 1. Desktop Window Native TitleBar */}
       <div className="desktop-titlebar flex h-8 w-full items-center justify-between border-b border-[#1b202c] bg-[#0c0e15] px-3 text-[11px] text-slate-400 z-50">
         {/* Left: App Identity */}
@@ -125,13 +141,20 @@ export function AppLayout() {
           </span>
         </div>
 
-        <div className="flex items-center gap-4 text-[10px] font-mono text-slate-400">
+        <div className="flex items-center gap-3 text-[10px] font-mono text-slate-400">
+          <button
+            onClick={() => setShortcutsModalOpen(true)}
+            className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
+            title="Keyboard Shortcuts Hub (?)"
+          >
+            <kbd className="rounded bg-[#161a24] px-1 py-0.2 border border-[#232a38] text-slate-300">?</kbd>
+            <span>Shortcuts</span>
+          </button>
+          <span className="text-[#262c3b]">|</span>
           <span className="flex items-center gap-1">
             <kbd className="rounded bg-[#161a24] px-1 py-0.2 border border-[#232a38] text-slate-300">Ctrl+K</kbd>
-            <span>Command Palette</span>
+            <span>Command</span>
           </span>
-          <span className="text-[#262c3b]">|</span>
-          <span>UTF-8</span>
           <span className="text-[#262c3b]">|</span>
           <span className="text-slate-300 capitalize">{currentUser.role.replace('_', ' ')}</span>
         </div>
@@ -141,6 +164,7 @@ export function AppLayout() {
       <LoginModal />
       <PunchLocationModal />
       <CommandPalette />
+      <KeyboardShortcutsModal />
       <CreateTaskModal />
       <ApplyLeaveModal />
       <SubmitStandupModal />
