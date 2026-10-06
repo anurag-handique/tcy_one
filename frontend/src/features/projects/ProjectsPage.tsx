@@ -353,42 +353,57 @@ export function ProjectsPage() {
     return colors[Math.abs(hash) % colors.length];
   };
 
-  // Helper for Jira Issue Type Icon and Style
-  const renderIssueTypeIcon = (type?: IssueType, size: 'sm' | 'md' = 'sm') => {
+  // Authentic Jira Issue Type Icon Tile & Badge
+  const renderIssueTypeIcon = (type?: IssueType, showLabel: boolean = false, size: 'sm' | 'md' = 'sm') => {
     const t = type || 'task';
-    const szClass = size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5';
 
-    switch (t) {
-      case 'story':
-        return (
-          <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" title="User Story">
-            <Bookmark className={`${szClass} fill-emerald-400`} />
-            <span className="uppercase">Story</span>
+    const config = {
+      story: {
+        label: 'Story',
+        bg: 'bg-[#00875A]', // Jira Story Green
+        icon: <Bookmark className="h-2.5 w-2.5 fill-white text-white" />,
+        badgeText: 'text-emerald-400',
+        badgeBg: 'bg-emerald-500/10 border-emerald-500/30',
+      },
+      task: {
+        label: 'Task',
+        bg: 'bg-[#0052CC]', // Jira Task Blue
+        icon: <Check className="h-2.5 w-2.5 stroke-[3.5] text-white" />,
+        badgeText: 'text-blue-400',
+        badgeBg: 'bg-blue-500/10 border-blue-500/30',
+      },
+      bug: {
+        label: 'Bug',
+        bg: 'bg-[#DE350B]', // Jira Bug Red
+        icon: <Bug className="h-2.5 w-2.5 fill-white text-white" />,
+        badgeText: 'text-rose-400',
+        badgeBg: 'bg-rose-500/10 border-rose-500/30',
+      },
+      epic: {
+        label: 'Epic',
+        bg: 'bg-[#6554C0]', // Jira Epic Purple
+        icon: <Zap className="h-2.5 w-2.5 fill-white text-white" />,
+        badgeText: 'text-purple-400',
+        badgeBg: 'bg-purple-500/10 border-purple-500/30',
+      },
+    }[t];
+
+    const tileSize = size === 'sm' ? 'h-4 w-4 rounded-[3px]' : 'h-5 w-5 rounded-[4px]';
+
+    return (
+      <div className="inline-flex items-center gap-1.5" title={`Issue Type: ${config.label}`}>
+        <div
+          className={`${tileSize} ${config.bg} flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105`}
+        >
+          {config.icon}
+        </div>
+        {showLabel && (
+          <span className={`text-[10px] font-mono font-bold uppercase tracking-wider ${config.badgeText}`}>
+            {config.label}
           </span>
-        );
-      case 'bug':
-        return (
-          <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30" title="Bug / Defect">
-            <Bug className={szClass} />
-            <span className="uppercase">Bug</span>
-          </span>
-        );
-      case 'epic':
-        return (
-          <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-400 border border-purple-500/30" title="Epic">
-            <Zap className={`${szClass} fill-purple-400`} />
-            <span className="uppercase">Epic</span>
-          </span>
-        );
-      case 'task':
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-blue-500/15 text-blue-400 border border-blue-500/30" title="Task">
-            <CheckSquare className={szClass} />
-            <span className="uppercase">Task</span>
-          </span>
-        );
-    }
+        )}
+      </div>
+    );
   };
 
   return (
@@ -1263,7 +1278,7 @@ export function ProjectsPage() {
             {/* Header: Type + Key + Priority */}
             <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#21262d]">
               <div className="flex items-center gap-2">
-                {renderIssueTypeIcon(selectedTask.type, 'md')}
+                {renderIssueTypeIcon(selectedTask.type, true, 'md')}
                 <span className="font-mono text-xs font-bold text-blue-400">
                   {selectedProject?.code || 'ISSUE'}-{selectedTask.id.slice(0, 4)}
                 </span>
