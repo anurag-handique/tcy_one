@@ -140,6 +140,11 @@ interface DataState {
   updateDesignation: (id: string, updates: Partial<Designation>) => Promise<boolean>;
   deleteDesignation: (id: string) => Promise<boolean>;
 
+  // Holiday Actions (Admin / Super Admin)
+  addHoliday: (holiday: Omit<Holiday, 'id'>) => Promise<Holiday | null>;
+  updateHoliday: (id: string, updates: Partial<Holiday>) => Promise<boolean>;
+  deleteHoliday: (id: string) => Promise<boolean>;
+
   // Employee Actions
   addProfile: (profile: Omit<Profile, 'id' | 'created_at' | 'updated_at'>) => Profile;
   createEmployeeAccount: (payload: {
@@ -1360,6 +1365,100 @@ export const useDataStore = create<DataState>()(
             await supabase.from('designations').delete().eq('id', id);
           } catch (err) {
             console.warn('Supabase designation delete warning:', err);
+          }
+        }
+        return true;
+      },
+
+      // Holidays (Admin / Super Admin)
+      addHoliday: async (holidayData) => {
+        const tempHoliday: Holiday = {
+          id: 'hol-' + Date.now(),
+          name: holidayData.name.trim(),
+          holiday_date: holidayData.holiday_date,
+          is_optional: Boolean(holidayData.is_optional),
+          description: holidayData.description?.trim() || '',
+          year: holidayData.year || new Date(holidayData.holiday_date).getFullYear() || 2026,
+        };
+
+        set((state) => ({
+          holidays: [...state.holidays.filter((h) => h.holiday_date !== tempHoliday.holiday_date), tempHoliday].sort(
+            (a, b) => a.holiday_date.localeCompare(b.holiday_date)
+          ),
+        }));
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            const { data, error } = await supabase
+              .from('holidays')
+              .insert({
+                name: tempHoliday.name,
+                holiday_date: tempHoliday.holiday_date,
+                is_optional: tempHoliday.is_optional,
+                description: tempHoliday.description,
+                year: tempHoliday.year,
+              })
+              .select()
+              .single();
+
+            if (data && !error) {
+              set((state) => ({
+                holidays: state.holidays
+                  .map((h) => (h.id === tempHoliday.id ? (data as Holiday) : h))
+                  .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date)),
+              }));
+              return data as Holiday;
+            } else if (error) {
+              console.warn('Supabase holiday insert error:', error.message);
+            }
+          } catch (err) {
+            console.warn('Supabase holiday insert exception:', err);
+          }
+        }
+        return tempHoliday;
+      },
+
+      updateHoliday: async (id, updates) => {
+        set((state) => ({
+          holidays: state.holidays
+            .map((h) => (h.id === id ? { ...h, ...updates } : h))
+            .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date)),
+        }));
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            const { error } = await supabase
+              .from('holidays')
+              .update(updates)
+              .eq('id', id);
+
+            if (error) {
+              console.warn('Supabase holiday update error:', error.message);
+              return false;
+            }
+          } catch (err) {
+            console.warn('Supabase holiday update exception:', err);
+            return false;
+          }
+        }
+        return true;
+      },
+
+      deleteHoliday: async (id) => {
+        set((state) => ({
+          holidays: state.holidays.filter((h) => h.id !== id),
+        }));
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            const { error } = await supabase.from('holidays').delete().eq('id', id);
+            if (error) {
+              console.warn('Supabase holiday delete error:', error.message);
+              return false;
+            }
+          } catch (err) {
+            console.warn('Supabase holiday delete exception:', err);
+            return false;
           }
         }
         return true;

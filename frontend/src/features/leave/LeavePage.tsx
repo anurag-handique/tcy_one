@@ -8,22 +8,41 @@ import {
   Coffee,
   Check,
   X,
+  Search,
+  Trash2,
+  Edit2,
+  Calendar,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useUIStore } from '@/stores/uiStore';
 import { formatDate, getStatusColor } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import { UserAvatar } from '@/components/ui/Avatar';
+import { Holiday } from '@/types';
 import { toast } from 'sonner';
 
 export function LeavePage() {
   const { currentUser, activeRole } = useAuthStore();
-  const { leaveRequests, leaveTypes, holidays, reviewLeaveRequest, profiles, attendancePolicy } = useDataStore();
+  const {
+    leaveRequests,
+    leaveTypes,
+    holidays,
+    addHoliday,
+    updateHoliday,
+    deleteHoliday,
+    reviewLeaveRequest,
+    profiles,
+    attendancePolicy,
+  } = useDataStore();
   const { setLeaveModalOpen } = useUIStore();
 
-  const isManagerOrAdmin = activeRole === 'manager' || activeRole === 'admin' || activeRole === 'super_admin';
+  const isSuperAdminOrAdmin = activeRole === 'super_admin' || activeRole === 'admin';
+  const isManagerOrAdmin = activeRole === 'manager' || isSuperAdminOrAdmin;
 
   const myLeaves = leaveRequests.filter((l) => l.employee_id === currentUser.id);
   const pendingManagerApprovals = leaveRequests.filter((l) => l.status === 'pending');
@@ -36,6 +55,92 @@ export function LeavePage() {
   };
 
   const activeOverrides = attendancePolicy.working_saturdays_override || [];
+
+  // Holiday Management State (Admin / Super Admin)
+  const [holidaySearch, setHolidaySearch] = React.useState('');
+  const [holidayModalOpen, setHolidayModalOpen] = React.useState(false);
+  const [editingHoliday, setEditingHoliday] = React.useState<Holiday | null>(null);
+  const [holidayName, setHolidayName] = React.useState('');
+  const [holidayDate, setHolidayDate] = React.useState('');
+  const [holidayDesc, setHolidayDesc] = React.useState('');
+  const [holidayOptional, setHolidayOptional] = React.useState(false);
+  const [isSubmittingHoliday, setIsSubmittingHoliday] = React.useState(false);
+
+  const openAddHolidayModal = () => {
+    setEditingHoliday(null);
+    setHolidayName('');
+    setHolidayDate(new Date().toISOString().split('T')[0]);
+    setHolidayDesc('');
+    setHolidayOptional(false);
+    setHolidayModalOpen(true);
+  };
+
+  const openEditHolidayModal = (h: Holiday) => {
+    setEditingHoliday(h);
+    setHolidayName(h.name);
+    setHolidayDate(h.holiday_date);
+    setHolidayDesc(h.description || '');
+    setHolidayOptional(Boolean(h.is_optional));
+    setHolidayModalOpen(true);
+  };
+
+  const handleSaveHoliday = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!holidayName.trim()) {
+      toast.error('Holiday name is required');
+      return;
+    }
+    if (!holidayDate) {
+      toast.error('Holiday date is required');
+      return;
+    }
+
+    setIsSubmittingHoliday(true);
+    try {
+      if (editingHoliday) {
+        await updateHoliday(editingHoliday.id, {
+          name: holidayName.trim(),
+          holiday_date: holidayDate,
+          description: holidayDesc.trim() || undefined,
+          is_optional: holidayOptional,
+          year: new Date(holidayDate).getFullYear() || 2026,
+        });
+        toast.success(`Holiday "${holidayName}" updated successfully`);
+      } else {
+        await addHoliday({
+          name: holidayName.trim(),
+          holiday_date: holidayDate,
+          description: holidayDesc.trim() || undefined,
+          is_optional: holidayOptional,
+          year: new Date(holidayDate).getFullYear() || 2026,
+        });
+        toast.success(`Holiday "${holidayName}" added to company calendar`);
+      }
+      setHolidayModalOpen(false);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to save holiday');
+    } finally {
+      setIsSubmittingHoliday(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (h: Holiday) => {
+    if (window.confirm(`Are you sure you want to remove "${h.name}" from official holidays?`)) {
+      await deleteHoliday(h.id);
+      toast.success(`Holiday "${h.name}" deleted`);
+    }
+  };
+
+  const filteredHolidays = React.useMemo(() => {
+    const q = holidaySearch.toLowerCase().trim();
+    if (!q) return holidays;
+    return holidays.filter(
+      (h) =>
+        h.name.toLowerCase().includes(q) ||
+        h.holiday_date.includes(q) ||
+        h.description?.toLowerCase().includes(q)
+    );
+  }, [holidays, holidaySearch]);
 
   return (
     <div className="space-y-4">
@@ -281,33 +386,204 @@ export function LeavePage() {
             </div>
           )}
 
-          {/* Official Company Holidays */}
-          <div className="space-y-2">
-            <span className="text-[10px] font-mono uppercase text-slate-400 font-bold tracking-wider block">
-              Official 2026 Gazetted Holidays
-            </span>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {holidays.map((h) => (
-                <div key={h.id} className="desktop-panel rounded-lg p-3 flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-white text-xs">{h.name}</span>
-                      <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 uppercase">
-                        OFFICIAL
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">{h.description}</p>
-                  </div>
-                  <div className="text-right font-mono">
-                    <span className="text-xs font-bold text-blue-400 block">{formatDate(h.holiday_date, 'dd MMM')}</span>
-                    <span className="text-[10px] text-slate-400 uppercase">{formatDate(h.holiday_date, 'EEEE')}</span>
-                  </div>
+          {/* Official Company Holidays Header & Controls */}
+          <div className="space-y-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono uppercase text-slate-300 font-bold tracking-wider block">
+                  Official 2026 Gazetted & Company Holidays
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold">
+                  {holidays.length} Days
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Search */}
+                <div className="relative min-w-[180px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Filter holidays..."
+                    value={holidaySearch}
+                    onChange={(e) => setHolidaySearch(e.target.value)}
+                    className="w-full h-7.5 bg-[#0e121a] border border-[#1b202c] rounded-full pl-9 pr-3 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                  />
                 </div>
-              ))}
+
+                {/* Add Holiday Button (Super Admin / Admin only) */}
+                {isSuperAdminOrAdmin && (
+                  <Button
+                    size="sm"
+                    onClick={openAddHolidayModal}
+                    className="h-7.5 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-3 rounded-full gap-1 shadow-sm shrink-0"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Holiday</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Holiday Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {filteredHolidays.length === 0 ? (
+                <div className="col-span-2 p-8 text-center text-xs text-slate-500 font-mono rounded-lg border border-[#1b202c] bg-[#0c0e15]">
+                  No holidays match your search filter.
+                </div>
+              ) : (
+                filteredHolidays.map((h) => (
+                  <div key={h.id} className="desktop-panel rounded-lg p-3 flex items-center justify-between group hover:border-[#2a3449] transition-colors">
+                    <div className="space-y-1 pr-2 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-xs truncate">{h.name}</span>
+                        <span
+                          className={`text-[9px] font-mono px-1.5 py-0.2 rounded border uppercase font-bold shrink-0 ${
+                            h.is_optional
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          }`}
+                        >
+                          {h.is_optional ? 'OPTIONAL' : 'OFFICIAL'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 truncate">{h.description || 'Gazetted Company Holiday'}</p>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right font-mono">
+                        <span className="text-xs font-bold text-blue-400 block">{formatDate(h.holiday_date, 'dd MMM')}</span>
+                        <span className="text-[10px] text-slate-400 uppercase">{formatDate(h.holiday_date, 'EEEE')}</span>
+                      </div>
+
+                      {/* Admin Controls */}
+                      {isSuperAdminOrAdmin && (
+                        <div className="flex items-center gap-1 pl-2 border-l border-[#1b202c]">
+                          <button
+                            onClick={() => openEditHolidayModal(h)}
+                            title="Edit Holiday"
+                            className="p-1 rounded text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteHoliday(h)}
+                            title="Delete Holiday"
+                            className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Admin Add / Edit Holiday Modal */}
+      {isSuperAdminOrAdmin && (
+        <Dialog open={holidayModalOpen} onOpenChange={setHolidayModalOpen}>
+          <DialogContent className="max-w-md bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-[#21262d] pr-8">
+              <div className="flex items-center gap-2.5">
+                <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                  <Calendar className="h-4 w-4 text-blue-400" />
+                </div>
+                <div>
+                  <DialogTitle className="text-sm font-semibold text-white">
+                    {editingHoliday ? 'Edit Company Holiday' : 'Add Official Holiday'}
+                  </DialogTitle>
+                  <p className="text-[11px] text-slate-400">
+                    Managed by Super Admin & Administrative team
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveHoliday} className="space-y-3.5 pt-2 text-xs">
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Holiday Name <span className="text-rose-400">*</span>
+                </label>
+                <Input
+                  placeholder="e.g. Independence Day / Diwali"
+                  value={holidayName}
+                  onChange={(e) => setHolidayName(e.target.value)}
+                  className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 rounded-lg focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-200 block mb-1">
+                    Holiday Date <span className="text-rose-400">*</span>
+                  </label>
+                  <Input
+                    type="date"
+                    value={holidayDate}
+                    onChange={(e) => setHolidayDate(e.target.value)}
+                    className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-slate-200 block mb-1">
+                    Holiday Classification
+                  </label>
+                  <select
+                    value={holidayOptional ? 'optional' : 'official'}
+                    onChange={(e) => setHolidayOptional(e.target.value === 'optional')}
+                    className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="official">Official / Gazetted</option>
+                    <option value="optional">Optional / Restricted</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Description / Remarks (Optional)
+                </label>
+                <Textarea
+                  placeholder="Brief description of the holiday..."
+                  value={holidayDesc}
+                  onChange={(e) => setHolidayDesc(e.target.value)}
+                  rows={2}
+                  className="bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 rounded-lg focus:border-blue-500"
+                />
+              </div>
+
+              <DialogFooter className="pt-3 border-t border-[#21262d] flex items-center justify-between sm:justify-between w-full">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setHolidayModalOpen(false)}
+                  className="h-8 text-xs border-[#30363d] bg-[#161b22] hover:bg-[#21262d] text-slate-300"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isSubmittingHoliday}
+                  className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 shadow-sm"
+                >
+                  {editingHoliday ? 'Update Holiday' : 'Save & Publish Holiday'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
+
