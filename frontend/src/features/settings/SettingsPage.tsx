@@ -4,8 +4,6 @@ import {
   Settings as SettingsIcon,
   Database,
   RefreshCw,
-  Copy,
-  Check,
   Shield,
   Layers,
   Clock,
@@ -60,8 +58,6 @@ export function SettingsPage() {
   const [allowOvertime, setAllowOvertime] = React.useState(attendancePolicy.allow_overtime ?? true);
   const [strictEnforcement, setStrictEnforcement] = React.useState(attendancePolicy.strict_enforcement ?? false);
   const [saturdayOffRule, setSaturdayOffRule] = React.useState<any>(attendancePolicy.saturday_off_rule || '3rd_4th');
-
-  const [copied, setCopied] = React.useState(false);
 
   React.useEffect(() => {
     setOfficeStartTime(attendancePolicy.office_start_time || '09:30');
@@ -119,12 +115,6 @@ export function SettingsPage() {
         ? `Enabled ${formatDate(dateStr, 'dd MMM yyyy')} as an Urgent Working Saturday`
         : `Restored ${formatDate(dateStr, 'dd MMM yyyy')} to standard holiday status`
     );
-  };
-
-  const handleCopySchemaNotice = () => {
-    setCopied(true);
-    toast.success('Schema path copied to clipboard');
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleResetData = () => {
@@ -223,19 +213,21 @@ export function SettingsPage() {
           <span>Display & Density</span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('database')}
-          className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
-            activeTab === 'database'
-              ? 'bg-blue-600 text-white border-blue-500'
-              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#121724]'
-          )}
-        >
-          <Database className="h-3 w-3" />
-          <span>Database & Cloud</span>
-        </button>
+        {isSuperAdminOrAdmin && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('database')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
+              activeTab === 'database'
+                ? 'bg-blue-600 text-white border-blue-500'
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#121724]'
+            )}
+          >
+            <Database className="h-3 w-3" />
+            <span>Database & Cloud</span>
+          </button>
+        )}
 
         <button
           type="button"
@@ -623,13 +615,13 @@ export function SettingsPage() {
       {/* ===================================================================== */}
       {/* TAB 4: DATABASE & CLOUD STORAGE */}
       {/* ===================================================================== */}
-      {activeTab === 'database' && (
+      {activeTab === 'database' && isSuperAdminOrAdmin && (
         <div className="space-y-3">
           <div className="border border-[#1b2230] bg-[#0c1018] p-3.5 space-y-3">
             <div className="flex items-center justify-between border-b border-[#18202d] pb-2">
               <div className="flex items-center gap-2">
                 <Database className="h-3.5 w-3.5 text-emerald-400" />
-                <span className="text-xs font-bold font-mono uppercase text-white">Database & Storage Engine</span>
+                <span className="text-xs font-bold font-mono uppercase text-white">Cloud Storage & Services</span>
               </div>
               <span className="text-[9px] font-mono px-1.5 py-0.2 border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
                 ACTIVE
@@ -638,36 +630,22 @@ export function SettingsPage() {
 
             <div className="space-y-2 text-xs font-mono pt-1">
               <div className="flex items-center justify-between p-2 bg-[#080b11] border border-[#171e2c]">
-                <span className="text-slate-400 text-[11px]">Database Endpoint</span>
-                <span className="text-slate-200 text-[11px]">
-                  {import.meta.env.VITE_SUPABASE_URL || 'Configured via .env'}
+                <span className="text-slate-400 text-[11px]">Storage Status</span>
+                <span className="text-emerald-400 text-[11px] flex items-center gap-1">
+                  <Shield className="h-3 w-3" />
+                  <span>Cloud Database Connected</span>
                 </span>
               </div>
 
               <div className="flex items-center justify-between p-2 bg-[#080b11] border border-[#171e2c]">
-                <span className="text-slate-400 text-[11px]">Security Architecture</span>
-                <span className="text-emerald-400 text-[11px] flex items-center gap-1">
-                  <Shield className="h-3 w-3" />
-                  <span>RLS Active</span>
+                <span className="text-slate-400 text-[11px]">Access Architecture</span>
+                <span className="text-slate-200 text-[11px]">
+                  Enterprise Secure Multi-Role
                 </span>
-              </div>
-
-              <div className="p-2.5 bg-[#080b11] border border-[#171e2c] text-[11px] text-slate-400 font-sans leading-normal">
-                To migrate schema: execute <code className="text-blue-400 font-mono px-1 bg-blue-500/10">scripts/supabase_schema.sql</code> and <code className="text-blue-400 font-mono px-1 bg-blue-500/10">scripts/seed_data.sql</code> in SQL Editor.
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#18202d]">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCopySchemaNotice}
-                className="h-7 text-xs border-[#222a3c] bg-[#080b11] hover:bg-[#121622] rounded-none"
-              >
-                {copied ? <Check className="h-3 w-3 text-emerald-400 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
-                <span>Copy Script Path</span>
-              </Button>
-
               <Button
                 variant="destructive"
                 size="sm"
