@@ -159,7 +159,7 @@ export function SettingsPage() {
   const activeOverridesCount = attendancePolicy.working_saturdays_override?.length || 0;
 
   const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-  const modKey = isMac ? '⌘' : 'Ctrl';
+  const modKey = isMac ? '⌘' : 'Win / Ctrl';
 
   return (
     <div className="space-y-3 max-w-5xl">

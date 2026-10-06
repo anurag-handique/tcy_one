@@ -29,17 +29,17 @@ export function useKeyboardShortcuts() {
         target.tagName === 'SELECT' ||
         target.isContentEditable;
 
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+      // Check modifier key: Supports Windows Key (e.metaKey), Command Key (e.metaKey on Mac), and Ctrl Key
+      const cmdOrCtrl = Boolean(e.metaKey || e.ctrlKey);
 
-      // 1. Command Palette: Ctrl+K / Cmd+K
+      // 1. Command Palette & Search: Windows+K / Meta+K / Ctrl+K / Cmd+K
       if (cmdOrCtrl && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setCommandPaletteOpen(true);
         return;
       }
 
-      // 2. Toggle Left Sidebar: Ctrl+B / Cmd+B
+      // 2. Toggle Left Sidebar: Windows+B / Ctrl+B / Cmd+B
       if (cmdOrCtrl && e.key.toLowerCase() === 'b') {
         e.preventDefault();
         toggleSidebar();

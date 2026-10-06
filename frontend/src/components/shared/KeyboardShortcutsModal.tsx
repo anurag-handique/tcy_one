@@ -24,7 +24,7 @@ export function KeyboardShortcutsModal() {
   const { shortcutsModalOpen, setShortcutsModalOpen } = useUIStore();
 
   const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-  const modKey = isMac ? '⌘' : 'Ctrl';
+  const modKey = isMac ? '⌘' : 'Win / Ctrl';
 
   const shortcutGroups = [
     {
