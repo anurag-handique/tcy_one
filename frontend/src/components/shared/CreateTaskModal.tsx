@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 const taskSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters'),
   description: z.string().optional(),
+  type: z.enum(['story', 'task', 'bug', 'epic']),
   project_id: z.string().min(1, 'Please select a project'),
   assignee_id: z.string().min(1, 'Please assign to a team member'),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
@@ -40,6 +41,7 @@ export function CreateTaskModal() {
     defaultValues: {
       title: '',
       description: '',
+      type: 'task',
       project_id: projects[0]?.id || '',
       assignee_id: currentUser.id,
       priority: 'medium',
@@ -55,6 +57,7 @@ export function CreateTaskModal() {
     createTask({
       title: data.title,
       description: data.description,
+      type: data.type,
       project_id: data.project_id,
       assignee_id: data.assignee_id,
       reporter_id: currentUser.id,
@@ -64,6 +67,7 @@ export function CreateTaskModal() {
       estimated_hours: data.estimated_hours,
       actual_hours: 0,
       tags: tagsArray,
+      subtasks: [],
     });
 
     toast.success('Task created successfully');
@@ -75,20 +79,33 @@ export function CreateTaskModal() {
     <Dialog open={activeTaskModalOpen} onOpenChange={setTaskModalOpen}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Create WorkHub Task</DialogTitle>
+          <DialogTitle>Create Agile Issue / Task</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 pt-2">
-          <div className="space-y-1">
-            <div className="flex items-center justify-between h-5">
-              <label className="text-xs font-semibold text-slate-300">Task Title</label>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-300">Issue Type</label>
+              <select
+                {...register('type')}
+                className="flex h-8 w-full border border-[#1f2637] bg-[#0c1018] px-2.5 py-1 text-xs text-slate-100 font-mono focus:border-blue-500 focus:outline-none rounded-lg"
+              >
+                <option value="story">📗 Story</option>
+                <option value="task">📘 Task</option>
+                <option value="bug">📕 Bug</option>
+                <option value="epic">🟪 Epic</option>
+              </select>
             </div>
-            <Input
-              placeholder="e.g. Implement user authentication flow"
-              {...register('title')}
-              className="h-8"
-            />
-            {errors.title && <p className="text-xs text-rose-400 mt-0.5">{errors.title.message}</p>}
+
+            <div className="col-span-2 space-y-1">
+              <label className="text-xs font-semibold text-slate-300">Summary / Title</label>
+              <Input
+                placeholder="e.g. Implement user authentication flow"
+                {...register('title')}
+                className="h-8"
+              />
+              {errors.title && <p className="text-xs text-rose-400 mt-0.5">{errors.title.message}</p>}
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -109,7 +126,7 @@ export function CreateTaskModal() {
               </div>
               <select
                 {...register('project_id')}
-                className="flex h-8 w-full border border-[#1f2637] bg-[#0c1018] px-2.5 py-1 text-xs text-slate-100 font-mono focus:border-blue-500 focus:outline-none"
+                className="flex h-8 w-full border border-[#1f2637] bg-[#0c1018] px-2.5 py-1 text-xs text-slate-100 font-mono focus:border-blue-500 focus:outline-none rounded-lg"
               >
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>

@@ -163,6 +163,15 @@ export interface TaskComment {
   created_at: string;
 }
 
+export type IssueType = 'story' | 'task' | 'bug' | 'epic';
+
+export interface Subtask {
+  id: string;
+  title: string;
+  completed: boolean;
+  assignee_id?: string;
+}
+
 export interface Task {
   id: string;
   project_id: string;
@@ -171,6 +180,8 @@ export interface Task {
   description?: string;
   status: TaskStatus;
   priority: PriorityLevel;
+  type?: IssueType;
+  subtasks?: Subtask[];
   assignee_id?: string;
   assignee?: Profile;
   reporter_id?: string;

@@ -25,11 +25,19 @@ import {
   ArrowUpRight,
   ShieldCheck,
   SlidersHorizontal,
+  Bookmark,
+  CheckSquare,
+  Bug,
+  Zap,
+  CheckCircle,
+  Circle,
+  ListChecks,
+  User,
 } from 'lucide-react';
 import { useDataStore } from '@/stores/dataStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
-import { Project, PriorityLevel, ProjectStatus, TaskStatus, Task } from '@/types';
+import { Project, PriorityLevel, ProjectStatus, TaskStatus, Task, IssueType, Subtask } from '@/types';
 import { formatDate, formatRupees, getPriorityColor, getStatusColor } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
@@ -51,6 +59,7 @@ export function ProjectsPage() {
     updateProject,
     deleteProject,
     createTask,
+    updateTask,
     updateTaskStatus,
     deleteTask,
   } = useDataStore();
@@ -65,6 +74,7 @@ export function ProjectsPage() {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
   const [priorityFilter, setPriorityFilter] = React.useState<string>('all');
+  const [typeFilter, setTypeFilter] = React.useState<string>('all');
   const [myProjectsOnly, setMyProjectsOnly] = React.useState(false);
 
   // Selected Project Workspace Modal State
@@ -72,13 +82,20 @@ export function ProjectsPage() {
   const [projectTab, setProjectTab] = React.useState<ProjectTab>('tasks_board');
   const [taskSearchQuery, setTaskSearchQuery] = React.useState('');
 
+  // Selected Task / Issue Detail Drawer State
+  const [selectedTask, setSelectedTask] = React.useState<Task | null>(null);
+  const [newSubtaskTitle, setNewSubtaskTitle] = React.useState('');
+
   // Quick Task Creation inside Project Board
   const [quickTaskModalOpen, setQuickTaskModalOpen] = React.useState(false);
   const [quickTaskTitle, setQuickTaskTitle] = React.useState('');
   const [quickTaskDesc, setQuickTaskDesc] = React.useState('');
+  const [quickTaskType, setQuickTaskType] = React.useState<IssueType>('task');
   const [quickTaskStatus, setQuickTaskStatus] = React.useState<TaskStatus>('todo');
   const [quickTaskPriority, setQuickTaskPriority] = React.useState<PriorityLevel>('medium');
   const [quickTaskAssignee, setQuickTaskAssignee] = React.useState(currentUser.id);
+  const [quickTaskSubtasks, setQuickTaskSubtasks] = React.useState<string[]>([]);
+  const [quickSubtaskInput, setQuickSubtaskInput] = React.useState('');
 
   // Project Modals
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
@@ -86,7 +103,7 @@ export function ProjectsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
   const [editingProject, setEditingProject] = React.useState<Project | null>(null);
 
-  // Form State for Create
+  // Form State for Create Project
   const [name, setName] = React.useState('');
   const [code, setCode] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -98,7 +115,7 @@ export function ProjectsPage() {
   const [budget, setBudget] = React.useState('');
   const [managerId, setManagerId] = React.useState(currentUser.id);
 
-  // Form State for Edit
+  // Form State for Edit Project
   const [editName, setEditName] = React.useState('');
   const [editCode, setEditCode] = React.useState('');
   const [editDescription, setEditDescription] = React.useState('');
@@ -199,30 +216,91 @@ export function ProjectsPage() {
     setEditingProject(null);
   };
 
+  // Quick Create Issue with IssueType and Subtasks
+  const handleAddQuickSubtask = () => {
+    if (!quickSubtaskInput.trim()) return;
+    setQuickTaskSubtasks([...quickTaskSubtasks, quickSubtaskInput.trim()]);
+    setQuickSubtaskInput('');
+  };
+
+  const handleRemoveQuickSubtask = (idx: number) => {
+    setQuickTaskSubtasks(quickTaskSubtasks.filter((_, i) => i !== idx));
+  };
+
   const handleQuickCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject || !quickTaskTitle.trim()) {
-      toast.error('Task summary is required');
+      toast.error('Issue summary is required');
       return;
     }
+
+    const formattedSubtasks: Subtask[] = quickTaskSubtasks.map((st, i) => ({
+      id: `sub-${Date.now()}-${i}`,
+      title: st,
+      completed: false,
+    }));
 
     createTask({
       project_id: selectedProject.id,
       title: quickTaskTitle.trim(),
       description: quickTaskDesc.trim(),
+      type: quickTaskType,
       status: quickTaskStatus,
       priority: quickTaskPriority,
       assignee_id: quickTaskAssignee || currentUser.id,
       reporter_id: currentUser.id,
       estimated_hours: 4,
       actual_hours: 0,
-      tags: [],
+      tags: [quickTaskType],
+      subtasks: formattedSubtasks,
     });
 
-    toast.success(`Issue created in ${selectedProject.code}`);
+    toast.success(`[${quickTaskType.toUpperCase()}] Issue created in ${selectedProject.code}`);
     setQuickTaskModalOpen(false);
     setQuickTaskTitle('');
     setQuickTaskDesc('');
+    setQuickTaskSubtasks([]);
+    setQuickSubtaskInput('');
+  };
+
+  // Subtask Toggling in Issue Drawer
+  const handleToggleSubtask = (task: Task, subtaskId: string) => {
+    const currentSubtasks = task.subtasks || [];
+    const updatedSubtasks = currentSubtasks.map((st) =>
+      st.id === subtaskId ? { ...st, completed: !st.completed } : st
+    );
+    updateTask(task.id, { subtasks: updatedSubtasks });
+    if (selectedTask && selectedTask.id === task.id) {
+      setSelectedTask({ ...selectedTask, subtasks: updatedSubtasks });
+    }
+  };
+
+  // Add Subtask on the Fly
+  const handleAddSubtaskToTask = (task: Task) => {
+    if (!newSubtaskTitle.trim()) return;
+    const currentSubtasks = task.subtasks || [];
+    const newSub: Subtask = {
+      id: `sub-${Date.now()}`,
+      title: newSubtaskTitle.trim(),
+      completed: false,
+    };
+    const updatedSubtasks = [...currentSubtasks, newSub];
+    updateTask(task.id, { subtasks: updatedSubtasks });
+    if (selectedTask && selectedTask.id === task.id) {
+      setSelectedTask({ ...selectedTask, subtasks: updatedSubtasks });
+    }
+    setNewSubtaskTitle('');
+    toast.success('Subtask added');
+  };
+
+  // Delete Subtask
+  const handleDeleteSubtask = (task: Task, subtaskId: string) => {
+    const currentSubtasks = task.subtasks || [];
+    const updatedSubtasks = currentSubtasks.filter((st) => st.id !== subtaskId);
+    updateTask(task.id, { subtasks: updatedSubtasks });
+    if (selectedTask && selectedTask.id === task.id) {
+      setSelectedTask({ ...selectedTask, subtasks: updatedSubtasks });
+    }
   };
 
   // Filter projects
@@ -244,8 +322,6 @@ export function ProjectsPage() {
     });
   }, [projects, searchQuery, statusFilter, priorityFilter, myProjectsOnly, currentUser.id]);
 
-  // Project task counts
-  const totalTasksCount = tasks.length;
   const activeProjectsCount = projects.filter((p) => p.status === 'active').length;
   const planningProjectsCount = projects.filter((p) => p.status === 'planning').length;
 
@@ -277,6 +353,44 @@ export function ProjectsPage() {
     return colors[Math.abs(hash) % colors.length];
   };
 
+  // Helper for Jira Issue Type Icon and Style
+  const renderIssueTypeIcon = (type?: IssueType, size: 'sm' | 'md' = 'sm') => {
+    const t = type || 'task';
+    const szClass = size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5';
+
+    switch (t) {
+      case 'story':
+        return (
+          <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" title="User Story">
+            <Bookmark className={`${szClass} fill-emerald-400`} />
+            <span className="uppercase">Story</span>
+          </span>
+        );
+      case 'bug':
+        return (
+          <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30" title="Bug / Defect">
+            <Bug className={szClass} />
+            <span className="uppercase">Bug</span>
+          </span>
+        );
+      case 'epic':
+        return (
+          <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-400 border border-purple-500/30" title="Epic">
+            <Zap className={`${szClass} fill-purple-400`} />
+            <span className="uppercase">Epic</span>
+          </span>
+        );
+      case 'task':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-blue-500/15 text-blue-400 border border-blue-500/30" title="Task">
+            <CheckSquare className={szClass} />
+            <span className="uppercase">Task</span>
+          </span>
+        );
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Jira Top Header */}
@@ -298,7 +412,7 @@ export function ProjectsPage() {
             </div>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Jira-style agile project boards, squad allocations, sprint tracking, and deliverables.
+            Agile Kanban boards, Jira-style ticket types (Story, Task, Bug, Epic), subtask tracking, and sprint health.
           </p>
         </div>
 
@@ -451,11 +565,17 @@ export function ProjectsPage() {
                     colProjects.map((proj) => {
                       const projTasks = tasks.filter((t) => t.project_id === proj.id);
                       const doneTasks = projTasks.filter((t) => t.status === 'done');
-                      const inProgressTasks = projTasks.filter((t) => t.status === 'in_progress');
                       const completionPct = projTasks.length > 0 ? Math.round((doneTasks.length / projTasks.length) * 100) : 0;
                       const manager = profiles.find((p) => p.id === proj.manager_id);
                       const prio = getPriorityColor(proj.priority);
                       const keyColor = getProjectKeyColor(proj.code);
+
+                      // Count total subtasks
+                      const totalSubtasks = projTasks.reduce((acc, t) => acc + (t.subtasks?.length || 0), 0);
+                      const doneSubtasks = projTasks.reduce(
+                        (acc, t) => acc + (t.subtasks?.filter((s) => s.completed).length || 0),
+                        0
+                      );
 
                       return (
                         <div
@@ -504,11 +624,15 @@ export function ProjectsPage() {
                             )}
                           </div>
 
-                          {/* Progress Bar & Issue Counters */}
+                          {/* Progress Bar & Issue + Subtask Counters */}
                           <div className="space-y-1.5 pt-1">
                             <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-                              <span>Issues Progress</span>
-                              <span className="text-slate-200 font-bold">{doneTasks.length}/{projTasks.length} ({completionPct}%)</span>
+                              <span>Issues ({doneTasks.length}/{projTasks.length})</span>
+                              {totalSubtasks > 0 ? (
+                                <span className="text-blue-400 font-semibold">{doneSubtasks}/{totalSubtasks} subtasks</span>
+                              ) : (
+                                <span className="text-slate-200 font-bold">{completionPct}%</span>
+                              )}
                             </div>
                             <Progress value={completionPct} indicatorColor="bg-blue-500" className="h-1.5 rounded-full bg-[#161c28]" />
                           </div>
@@ -738,7 +862,7 @@ export function ProjectsPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* 4. JIRA PROJECT WORKSPACE / SPRINT BOARD MODAL */}
+      {/* 4. JIRA PROJECT WORKSPACE & SPRINT BOARD MODAL */}
       {/* ========================================================================= */}
       {selectedProject && (
         <Dialog open={Boolean(selectedProject)} onOpenChange={() => setSelectedProject(null)}>
@@ -772,12 +896,14 @@ export function ProjectsPage() {
                 <Button
                   size="sm"
                   onClick={() => {
+                    setQuickTaskType('task');
                     setQuickTaskStatus('todo');
                     setQuickTaskPriority('medium');
                     setQuickTaskAssignee(currentUser.id);
+                    setQuickTaskSubtasks([]);
                     setQuickTaskModalOpen(true);
                   }}
-                  className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-3 rounded-full gap-1 shadow-sm font-mono"
+                  className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-3.5 rounded-full gap-1 shadow-sm font-mono"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   <span>Create Issue</span>
@@ -859,7 +985,7 @@ export function ProjectsPage() {
                         </div>
 
                         {/* Task Cards */}
-                        <div className="space-y-2 flex-1 overflow-y-auto max-h-[360px]">
+                        <div className="space-y-2 flex-1 overflow-y-auto max-h-[380px]">
                           {colTasks.length === 0 ? (
                             <div className="py-8 text-center text-slate-600 text-[11px] font-mono">
                               No issues
@@ -868,41 +994,64 @@ export function ProjectsPage() {
                             colTasks.map((task) => {
                               const assignee = profiles.find((p) => p.id === task.assignee_id);
                               const prio = getPriorityColor(task.priority);
+                              const subtasks = task.subtasks || [];
+                              const completedSubtasks = subtasks.filter((s) => s.completed).length;
 
                               return (
                                 <div
                                   key={task.id}
-                                  className="bg-[#121622] hover:bg-[#161b2a] rounded-lg p-2.5 border border-[#1f2638] space-y-2 transition-all shadow-sm group"
+                                  onClick={() => setSelectedTask(task)}
+                                  className="bg-[#121622] hover:bg-[#161b2a] rounded-xl p-3 border border-[#1f2638] hover:border-blue-500/50 space-y-2.5 transition-all shadow-sm group cursor-pointer"
                                 >
+                                  {/* Top: Issue Type + Key + Priority */}
                                   <div className="flex items-center justify-between gap-1">
-                                    <span className="text-[9px] font-mono text-blue-400 font-bold">
-                                      {selectedProject.code}-{task.id.slice(0, 4)}
-                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      {renderIssueTypeIcon(task.type)}
+                                      <span className="text-[9px] font-mono text-blue-400 font-bold">
+                                        {selectedProject.code}-{task.id.slice(0, 4)}
+                                      </span>
+                                    </div>
+
                                     <span className={`text-[8px] font-mono px-1.5 py-0.2 rounded-full border uppercase ${prio.bg}`}>
                                       {task.priority}
                                     </span>
                                   </div>
 
+                                  {/* Title */}
                                   <p className="text-xs font-semibold text-slate-100 leading-snug line-clamp-2">
                                     {task.title}
                                   </p>
 
-                                  <div className="flex items-center justify-between pt-1 border-t border-[#1a2130] text-[10px] font-mono text-slate-400">
+                                  {/* Subtasks Progress Badge if any */}
+                                  {subtasks.length > 0 && (
+                                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400 bg-[#0c1018] px-2 py-0.5 rounded-full border border-[#1b2230] w-fit">
+                                      <ListChecks className="h-3 w-3 text-blue-400" />
+                                      <span>
+                                        {completedSubtasks}/{subtasks.length} subtasks
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Footer: Assignee + Quick Status dropdown */}
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-[#1a2130] text-[10px] font-mono text-slate-400">
                                     <div className="flex items-center gap-1.5">
                                       <UserAvatar
                                         name={assignee?.full_name || 'Member'}
                                         avatarUrl={assignee?.avatar_url}
                                         size="sm"
-                                        className="h-4.5 w-4.5 text-[8px] rounded-full"
+                                        className="h-5 w-5 text-[8px] rounded-full border border-slate-700"
                                       />
-                                      <span className="truncate max-w-[80px]">{assignee?.full_name?.split(' ')[0] || 'Unassigned'}</span>
+                                      <span className="truncate max-w-[70px] text-slate-300">
+                                        {assignee?.full_name?.split(' ')[0] || 'Unassigned'}
+                                      </span>
                                     </div>
 
-                                    {/* Quick move status dropdown */}
+                                    {/* Inline Status Dropdown */}
                                     <select
                                       value={task.status}
+                                      onClick={(e) => e.stopPropagation()}
                                       onChange={(e) => updateTaskStatus(task.id, e.target.value as TaskStatus)}
-                                      className="bg-[#0a0d14] border border-[#1f2637] rounded px-1 text-[9px] font-mono text-slate-300 focus:outline-none"
+                                      className="bg-[#0a0d14] border border-[#1f2637] rounded-full px-1.5 py-0.5 text-[9px] font-mono text-slate-200 focus:outline-none focus:border-blue-500"
                                     >
                                       <option value="todo">TO DO</option>
                                       <option value="in_progress">IN PROGRESS</option>
@@ -929,18 +1078,20 @@ export function ProjectsPage() {
                   <table className="w-full text-left text-xs">
                     <thead className="bg-[#121622] border-b border-[#1b202c] font-mono text-[10px] uppercase text-slate-400">
                       <tr>
-                        <th className="py-2 px-3">Issue Key</th>
-                        <th className="py-2 px-3">Summary</th>
-                        <th className="py-2 px-3">Status</th>
-                        <th className="py-2 px-3">Priority</th>
-                        <th className="py-2 px-3">Assignee</th>
-                        <th className="py-2 px-3 text-right">Actions</th>
+                        <th className="py-2.5 px-3">Type</th>
+                        <th className="py-2.5 px-3">Key</th>
+                        <th className="py-2.5 px-3">Summary</th>
+                        <th className="py-2.5 px-3">Subtasks</th>
+                        <th className="py-2.5 px-3">Status</th>
+                        <th className="py-2.5 px-3">Priority</th>
+                        <th className="py-2.5 px-3">Assignee</th>
+                        <th className="py-2.5 px-3 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#161b26]">
                       {tasks.filter((t) => t.project_id === selectedProject.id).length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-slate-500 font-mono text-xs">
+                          <td colSpan={8} className="py-8 text-center text-slate-500 font-mono text-xs">
                             No issues created for this project yet.
                           </td>
                         </tr>
@@ -950,20 +1101,36 @@ export function ProjectsPage() {
                           .map((task) => {
                             const assignee = profiles.find((p) => p.id === task.assignee_id);
                             const prio = getPriorityColor(task.priority);
+                            const subtasks = task.subtasks || [];
+                            const completedSubtasks = subtasks.filter((s) => s.completed).length;
 
                             return (
-                              <tr key={task.id} className="hover:bg-[#121622] text-slate-300">
-                                <td className="py-2 px-3 font-mono text-[10px] text-blue-400 font-bold">
+                              <tr
+                                key={task.id}
+                                onClick={() => setSelectedTask(task)}
+                                className="hover:bg-[#121622] text-slate-300 cursor-pointer"
+                              >
+                                <td className="py-2.5 px-3">
+                                  {renderIssueTypeIcon(task.type)}
+                                </td>
+                                <td className="py-2.5 px-3 font-mono text-[10px] text-blue-400 font-bold">
                                   {selectedProject.code}-{task.id.slice(0, 4)}
                                 </td>
-                                <td className="py-2 px-3 font-medium text-white max-w-xs truncate">
+                                <td className="py-2.5 px-3 font-medium text-white max-w-xs truncate">
                                   {task.title}
                                 </td>
-                                <td className="py-2 px-3">
+                                <td className="py-2.5 px-3 font-mono text-[10px] text-slate-400">
+                                  {subtasks.length > 0 ? (
+                                    <span className="text-blue-400 font-semibold">{completedSubtasks}/{subtasks.length}</span>
+                                  ) : (
+                                    '—'
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
                                   <select
                                     value={task.status}
                                     onChange={(e) => updateTaskStatus(task.id, e.target.value as TaskStatus)}
-                                    className="bg-[#10141e] border border-[#1f2637] rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-200 focus:outline-none"
+                                    className="bg-[#10141e] border border-[#1f2637] rounded-full px-2 py-0.5 text-[10px] font-mono text-slate-200 focus:outline-none"
                                   >
                                     <option value="todo">TO DO</option>
                                     <option value="in_progress">IN PROGRESS</option>
@@ -971,12 +1138,12 @@ export function ProjectsPage() {
                                     <option value="done">DONE</option>
                                   </select>
                                 </td>
-                                <td className="py-2 px-3">
+                                <td className="py-2.5 px-3">
                                   <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full border uppercase ${prio.bg}`}>
                                     {task.priority}
                                   </span>
                                 </td>
-                                <td className="py-2 px-3">
+                                <td className="py-2.5 px-3">
                                   <div className="flex items-center gap-1.5">
                                     <UserAvatar
                                       name={assignee?.full_name || 'Member'}
@@ -984,10 +1151,10 @@ export function ProjectsPage() {
                                       size="sm"
                                       className="h-4.5 w-4.5 text-[8px] rounded-full"
                                     />
-                                    <span className="text-slate-300 font-mono text-[11px]">{assignee?.full_name || 'Unassigned'}</span>
+                                    <span className="text-slate-300 font-mono text-[11px]">{assignee?.full_name?.split(' ')[0] || 'Unassigned'}</span>
                                   </div>
                                 </td>
-                                <td className="py-2 px-3 text-right">
+                                <td className="py-2.5 px-3 text-right" onClick={(e) => e.stopPropagation()}>
                                   <button
                                     onClick={() => deleteTask(task.id)}
                                     className="text-slate-500 hover:text-rose-400 p-1 rounded transition-colors"
@@ -1088,7 +1255,208 @@ export function ProjectsPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* 5. CREATE PROJECT MODAL */}
+      {/* 5. JIRA ISSUE DETAIL & SUBTASKS DRAWER / MODAL */}
+      {/* ========================================================================= */}
+      {selectedTask && (
+        <Dialog open={Boolean(selectedTask)} onOpenChange={() => setSelectedTask(null)}>
+          <DialogContent className="max-w-xl bg-[#0a0d14] border border-[#21262d] p-5 shadow-2xl rounded-2xl max-h-[85vh] overflow-y-auto">
+            {/* Header: Type + Key + Priority */}
+            <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#21262d]">
+              <div className="flex items-center gap-2">
+                {renderIssueTypeIcon(selectedTask.type, 'md')}
+                <span className="font-mono text-xs font-bold text-blue-400">
+                  {selectedProject?.code || 'ISSUE'}-{selectedTask.id.slice(0, 4)}
+                </span>
+                <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border uppercase font-bold ${getPriorityColor(selectedTask.priority).bg}`}>
+                  {selectedTask.priority}
+                </span>
+              </div>
+
+              <select
+                value={selectedTask.status}
+                onChange={(e) => {
+                  const newStat = e.target.value as TaskStatus;
+                  updateTaskStatus(selectedTask.id, newStat);
+                  setSelectedTask({ ...selectedTask, status: newStat });
+                }}
+                className="bg-[#121622] border border-[#22293a] rounded-full px-2.5 py-1 text-xs font-mono text-slate-200 focus:outline-none focus:border-blue-500"
+              >
+                <option value="todo">TO DO</option>
+                <option value="in_progress">IN PROGRESS</option>
+                <option value="review">IN REVIEW</option>
+                <option value="done">DONE</option>
+              </select>
+            </div>
+
+            {/* Task Title & Description */}
+            <div className="space-y-3 pt-2">
+              <DialogTitle className="text-base font-bold text-white leading-snug">
+                {selectedTask.title}
+              </DialogTitle>
+
+              {selectedTask.description && (
+                <div className="p-3 rounded-xl bg-[#0e121a] border border-[#1b202c] text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+                  {selectedTask.description}
+                </div>
+              )}
+
+              {/* Assignee & Reporter Grid */}
+              <div className="grid grid-cols-2 gap-2.5 p-2.5 rounded-xl bg-[#0e121a] border border-[#1b202c] text-xs font-mono">
+                <div>
+                  <span className="text-[10px] text-slate-500 uppercase block">Assignee</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <UserAvatar
+                      name={profiles.find((p) => p.id === selectedTask.assignee_id)?.full_name || 'Member'}
+                      avatarUrl={profiles.find((p) => p.id === selectedTask.assignee_id)?.avatar_url}
+                      size="sm"
+                      className="h-5 w-5 text-[8px] rounded-full"
+                    />
+                    <span className="text-slate-200 font-medium truncate">
+                      {profiles.find((p) => p.id === selectedTask.assignee_id)?.full_name || 'Unassigned'}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-slate-500 uppercase block">Reporter</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <UserAvatar
+                      name={profiles.find((p) => p.id === selectedTask.reporter_id)?.full_name || 'Reporter'}
+                      avatarUrl={profiles.find((p) => p.id === selectedTask.reporter_id)?.avatar_url}
+                      size="sm"
+                      className="h-5 w-5 text-[8px] rounded-full"
+                    />
+                    <span className="text-slate-200 font-medium truncate">
+                      {profiles.find((p) => p.id === selectedTask.reporter_id)?.full_name || 'Reporter'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ============================================================= */}
+              {/* SUBTASKS SECTION */}
+              {/* ============================================================= */}
+              <div className="space-y-2.5 pt-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-200">
+                    <ListChecks className="h-4 w-4 text-blue-400" />
+                    <span>Subtasks ({selectedTask.subtasks?.length || 0})</span>
+                  </div>
+
+                  {selectedTask.subtasks && selectedTask.subtasks.length > 0 && (
+                    <span className="text-[11px] font-mono text-slate-400">
+                      {selectedTask.subtasks.filter((s) => s.completed).length} of {selectedTask.subtasks.length} completed
+                    </span>
+                  )}
+                </div>
+
+                {/* Subtasks Progress Bar */}
+                {selectedTask.subtasks && selectedTask.subtasks.length > 0 && (
+                  <Progress
+                    value={Math.round(
+                      (selectedTask.subtasks.filter((s) => s.completed).length / selectedTask.subtasks.length) * 100
+                    )}
+                    indicatorColor="bg-emerald-500"
+                    className="h-1.5 rounded-full bg-[#161c28]"
+                  />
+                )}
+
+                {/* Subtasks Checklist */}
+                <div className="space-y-1.5">
+                  {selectedTask.subtasks?.map((subtask) => (
+                    <div
+                      key={subtask.id}
+                      className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#0e121a] hover:bg-[#121622] border border-[#1b202c] transition-colors group"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSubtask(selectedTask, subtask.id)}
+                        className="flex items-center gap-2 text-left flex-1 min-w-0"
+                      >
+                        {subtask.completed ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                        ) : (
+                          <Circle className="h-4 w-4 text-slate-500 shrink-0 group-hover:text-blue-400" />
+                        )}
+                        <span
+                          className={`text-xs ${
+                            subtask.completed ? 'line-through text-slate-500 font-mono' : 'text-slate-200'
+                          } truncate`}
+                        >
+                          {subtask.title}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSubtask(selectedTask, subtask.id)}
+                        className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 p-1 rounded transition-opacity"
+                        title="Delete subtask"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Add Subtask Input */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <Input
+                      placeholder="+ Add a subtask and press Enter..."
+                      value={newSubtaskTitle}
+                      onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSubtaskToTask(selectedTask);
+                        }
+                      }}
+                      className="h-8 bg-[#0e121a] border-[#1f2637] text-xs text-slate-100 placeholder:text-slate-500 rounded-lg focus:border-blue-500"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleAddSubtaskToTask(selectedTask)}
+                      className="h-8 text-xs bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] text-slate-200 rounded-lg px-3 shrink-0"
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-4 border-t border-[#21262d] flex items-center justify-between sm:justify-between w-full">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  deleteTask(selectedTask.id);
+                  setSelectedTask(null);
+                  toast.success('Issue deleted');
+                }}
+                className="h-8 text-xs border-rose-500/30 bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-400 font-mono rounded-full"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Delete Issue</span>
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedTask(null)}
+                className="h-8 text-xs border-[#30363d] bg-[#161b22] text-slate-300 hover:bg-[#21262d] rounded-full font-mono"
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 6. CREATE PROJECT MODAL */}
       {/* ========================================================================= */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
         <DialogContent className="max-w-lg bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-2xl">
@@ -1248,7 +1616,7 @@ export function ProjectsPage() {
       </Dialog>
 
       {/* ========================================================================= */}
-      {/* 6. EDIT PROJECT MODAL */}
+      {/* 7. EDIT PROJECT MODAL */}
       {/* ========================================================================= */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
         <DialogContent className="max-w-lg bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-2xl">
@@ -1404,10 +1772,10 @@ export function ProjectsPage() {
       </Dialog>
 
       {/* ========================================================================= */}
-      {/* 7. QUICK CREATE ISSUE / TASK MODAL */}
+      {/* 8. QUICK CREATE ISSUE MODAL WITH TICKET TYPE & SUBTASKS */}
       {/* ========================================================================= */}
       <Dialog open={quickTaskModalOpen} onOpenChange={setQuickTaskModalOpen}>
-        <DialogContent className="max-w-md bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-2xl">
+        <DialogContent className="max-w-lg bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-2xl max-h-[85vh] overflow-y-auto">
           <div className="flex items-center gap-2.5 pb-3 border-b border-[#21262d]">
             <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
               <Plus className="h-4 w-4" />
@@ -1417,26 +1785,45 @@ export function ProjectsPage() {
                 Create Issue in {selectedProject?.code}
               </DialogTitle>
               <p className="text-[11px] text-slate-400">
-                Add an agile task to this project's sprint board
+                Choose ticket type (Story, Task, Bug, Epic) and add subtasks
               </p>
             </div>
           </div>
 
-          <form onSubmit={handleQuickCreateTask} className="space-y-3 pt-2 text-xs">
-            <div>
-              <label className="text-xs font-medium text-slate-200 block mb-1">
-                Summary / Task Title <span className="text-rose-400">*</span>
-              </label>
-              <Input
-                placeholder="e.g. Implement OAuth2 token refresh endpoint"
-                value={quickTaskTitle}
-                onChange={(e) => setQuickTaskTitle(e.target.value)}
-                className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
-                required
-              />
+          <form onSubmit={handleQuickCreateTask} className="space-y-3.5 pt-2 text-xs">
+            {/* Ticket Type & Summary */}
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Issue Type <span className="text-rose-400">*</span>
+                </label>
+                <select
+                  value={quickTaskType}
+                  onChange={(e) => setQuickTaskType(e.target.value as IssueType)}
+                  className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none font-mono"
+                >
+                  <option value="story">📗 Story</option>
+                  <option value="task">📘 Task</option>
+                  <option value="bug">📕 Bug</option>
+                  <option value="epic">🟪 Epic</option>
+                </select>
+              </div>
+
+              <div className="col-span-2">
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Issue Summary <span className="text-rose-400">*</span>
+                </label>
+                <Input
+                  placeholder="e.g. Implement OAuth2 token refresh endpoint"
+                  value={quickTaskTitle}
+                  onChange={(e) => setQuickTaskTitle(e.target.value)}
+                  className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
+                  required
+                />
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="text-xs font-medium text-slate-200 block mb-1">
                   Column / Status
@@ -1468,28 +1855,28 @@ export function ProjectsPage() {
                   <option value="low">Low</option>
                 </select>
               </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Assignee
+                </label>
+                <select
+                  value={quickTaskAssignee}
+                  onChange={(e) => setQuickTaskAssignee(e.target.value)}
+                  className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none"
+                >
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.full_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div>
               <label className="text-xs font-medium text-slate-200 block mb-1">
-                Assignee
-              </label>
-              <select
-                value={quickTaskAssignee}
-                onChange={(e) => setQuickTaskAssignee(e.target.value)}
-                className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none"
-              >
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name} ({p.role})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-slate-200 block mb-1">
-                Description (Optional)
+                Description / Acceptance Criteria
               </label>
               <Textarea
                 placeholder="Acceptance criteria and technical details..."
@@ -1498,6 +1885,54 @@ export function ProjectsPage() {
                 rows={2}
                 className="bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
               />
+            </div>
+
+            {/* Subtasks Builder */}
+            <div className="space-y-2 pt-1 border-t border-[#21262d]">
+              <label className="text-xs font-medium text-slate-200 flex items-center justify-between">
+                <span>Subtasks ({quickTaskSubtasks.length})</span>
+                <span className="text-[10px] text-slate-400 font-mono">Optional checklist items</span>
+              </label>
+
+              {quickTaskSubtasks.length > 0 && (
+                <div className="space-y-1 max-h-28 overflow-y-auto">
+                  {quickTaskSubtasks.map((st, i) => (
+                    <div key={i} className="flex items-center justify-between p-1.5 rounded bg-[#161b22] text-xs text-slate-200">
+                      <span className="truncate">{st}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveQuickSubtask(i)}
+                        className="text-slate-400 hover:text-rose-400 ml-2"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Add a subtask item..."
+                  value={quickSubtaskInput}
+                  onChange={(e) => setQuickSubtaskInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddQuickSubtask();
+                    }
+                  }}
+                  className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleAddQuickSubtask}
+                  className="h-8 text-xs bg-[#21262d] text-slate-200 hover:bg-[#30363d] rounded-lg px-3 shrink-0"
+                >
+                  Add
+                </Button>
+              </div>
             </div>
 
             <DialogFooter className="pt-3 border-t border-[#21262d] flex items-center justify-between sm:justify-between w-full">
@@ -1523,7 +1958,7 @@ export function ProjectsPage() {
       </Dialog>
 
       {/* ========================================================================= */}
-      {/* 8. DELETE CONFIRMATION MODAL */}
+      {/* 9. DELETE CONFIRMATION MODAL */}
       {/* ========================================================================= */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent className="max-w-md bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-2xl">
