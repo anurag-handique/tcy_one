@@ -7,13 +7,10 @@ import {
   Search,
   Check,
   Video,
-  Sparkles,
-  Calendar,
   Clock,
   Building,
   FolderKanban,
   FileText,
-  X,
 } from 'lucide-react';
 import { useUIStore } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
@@ -162,18 +159,6 @@ export function ScheduleMeetingModal() {
     setSelectedEmployeeIds([hostId]);
   };
 
-  const handleGenerateLink = () => {
-    const code =
-      Math.random().toString(36).substring(2, 5) +
-      '-' +
-      Math.random().toString(36).substring(2, 6) +
-      '-' +
-      Math.random().toString(36).substring(2, 5);
-    const generatedUrl = `https://meet.google.com/${code}`;
-    setValue('meeting_url', generatedUrl, { shouldValidate: true });
-    toast.success('Generated Google Meet link');
-  };
-
   const onSubmit = (data: MeetingFormData) => {
     const hostId = editingMeeting ? editingMeeting.created_by : currentUser.id;
     const allIds = Array.from(new Set([hostId, ...selectedEmployeeIds]));
@@ -236,7 +221,7 @@ export function ScheduleMeetingModal() {
 
   return (
     <Dialog open={activeMeetingModalOpen} onOpenChange={setMeetingModalOpen}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-hidden flex flex-col bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-xl">
+      <DialogContent className="max-w-4xl w-[94vw] bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-xl">
         {/* Minimal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-[#21262d]">
           <div className="flex items-center gap-2.5">
@@ -254,230 +239,223 @@ export function ScheduleMeetingModal() {
           </div>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form
-          onSubmit={handleSubmit(onSubmit)}
-          className="flex-1 overflow-y-auto space-y-3.5 pr-1 pt-2 text-xs"
-        >
-          {/* Title */}
-          <div>
-            <label className="text-xs font-medium text-slate-200 block mb-1">
-              Meeting Title <span className="text-rose-400">*</span>
-            </label>
-            <Input
-              placeholder="e.g. Sprint Backlog Planning & Sync"
-              {...register('title')}
-              className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 rounded-lg focus:border-blue-500"
-            />
-            {errors.title && (
-              <p className="text-[11px] text-rose-400 mt-1">{errors.title.message}</p>
-            )}
-          </div>
-
-          {/* Time & Duration Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-slate-200 block mb-1">
-                Start Time <span className="text-rose-400">*</span>
-              </label>
-              <Input
-                type="datetime-local"
-                {...register('start_time')}
-                className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg focus:border-blue-500"
-              />
-              {errors.start_time && (
-                <p className="text-[11px] text-rose-400 mt-1">{errors.start_time.message}</p>
-              )}
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-slate-200">
-                  End Time <span className="text-rose-400">*</span>
+        {/* 2-Column Desktop Grid to Avoid Scrolling */}
+        <form onSubmit={handleSubmit(onSubmit)} className="pt-3 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+            {/* Left Column: Meeting Details (7 cols) */}
+            <div className="md:col-span-7 space-y-3">
+              {/* Title */}
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Meeting Title <span className="text-rose-400">*</span>
                 </label>
-                <div className="flex items-center gap-1">
-                  {[15, 30, 60].map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => handleSetDuration(m)}
-                      className="px-1.5 py-0.2 rounded text-[10px] bg-[#21262d] text-slate-300 hover:text-white hover:bg-blue-600/30"
-                    >
-                      {m}m
-                    </button>
-                  ))}
+                <Input
+                  placeholder="e.g. Sprint Backlog Planning & Sync"
+                  {...register('title')}
+                  className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 rounded-lg focus:border-blue-500"
+                />
+                {errors.title && (
+                  <p className="text-[11px] text-rose-400 mt-1">{errors.title.message}</p>
+                )}
+              </div>
+
+              {/* Project & Location Row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-200 block mb-1">
+                    Associated Project
+                  </label>
+                  <select
+                    {...register('project_id')}
+                    className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">None (General Team Sync)</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.code || 'PRJ'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-slate-200 block mb-1">
+                    Room / Location
+                  </label>
+                  <Input
+                    placeholder="Virtual / Main Room"
+                    {...register('room_location')}
+                    className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 rounded-lg focus:border-blue-500"
+                  />
                 </div>
               </div>
-              <Input
-                type="datetime-local"
-                {...register('end_time')}
-                className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg focus:border-blue-500"
-              />
-              {errors.end_time && (
-                <p className="text-[11px] text-rose-400 mt-1">{errors.end_time.message}</p>
-              )}
-            </div>
-          </div>
 
-          {/* Project & Location Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-slate-200 block mb-1">
-                Associated Project
-              </label>
-              <select
-                {...register('project_id')}
-                className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-              >
-                <option value="">None (General Team Sync)</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.code || 'PRJ'})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-slate-200 block mb-1">
-                Room / Location
-              </label>
-              <Input
-                placeholder="Virtual / Main Conference Room"
-                {...register('room_location')}
-                className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 rounded-lg focus:border-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Meeting Video Link */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-slate-200">
-                Meeting Video Link
-              </label>
-              <button
-                type="button"
-                onClick={handleGenerateLink}
-                className="inline-flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 font-medium"
-              >
-                <Sparkles className="h-3 w-3" /> Auto-generate Meet Link
-              </button>
-            </div>
-            <Input
-              placeholder="https://meet.google.com/abc-defg-hij"
-              {...register('meeting_url')}
-              className="h-8 bg-[#161b22] border-[#30363d] text-xs text-blue-300 font-mono placeholder:text-slate-500 rounded-lg focus:border-blue-500"
-            />
-          </div>
-
-          {/* Attendees Selector */}
-          <div className="space-y-1.5 pt-1">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-slate-200 flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5 text-blue-400" />
-                <span>Invite Teammates ({selectedEmployeeIds.length})</span>
-              </label>
-              <div className="flex items-center gap-2 text-[11px]">
-                <button
-                  type="button"
-                  onClick={selectAllEmployees}
-                  className="text-blue-400 hover:underline"
-                >
-                  Select All
-                </button>
-                <span className="text-slate-600">•</span>
-                <button
-                  type="button"
-                  onClick={deselectAllEmployees}
-                  className="text-slate-400 hover:underline"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500" />
-              <input
-                type="text"
-                placeholder="Search teammates by name or email..."
-                value={employeeSearch}
-                onChange={(e) => setEmployeeSearch(e.target.value)}
-                className="w-full h-7.5 bg-[#161b22] border border-[#30363d] rounded-lg pl-8 pr-2.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            <div className="max-h-36 overflow-y-auto rounded-lg border border-[#30363d] bg-[#161b22] divide-y divide-[#21262d]">
-              {filteredEmployees.length === 0 ? (
-                <div className="p-3 text-center text-xs text-slate-500">
-                  No teammates found.
+              {/* Time & Duration Row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-200 block mb-1">
+                    Start Time <span className="text-rose-400">*</span>
+                  </label>
+                  <Input
+                    type="datetime-local"
+                    {...register('start_time')}
+                    className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg focus:border-blue-500"
+                  />
+                  {errors.start_time && (
+                    <p className="text-[11px] text-rose-400 mt-1">{errors.start_time.message}</p>
+                  )}
                 </div>
-              ) : (
-                filteredEmployees.map((emp) => {
-                  const hostId = editingMeeting ? editingMeeting.created_by : currentUser.id;
-                  const isHost = emp.id === hostId;
-                  const isSelected = isHost || selectedEmployeeIds.includes(emp.id);
 
-                  return (
-                    <div
-                      key={emp.id}
-                      onClick={() => toggleEmployee(emp.id)}
-                      className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors ${
-                        isSelected
-                          ? 'bg-blue-600/10 text-white'
-                          : 'hover:bg-[#21262d] text-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div
-                          className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
-                            isSelected
-                              ? 'bg-blue-600 border-blue-500 text-white'
-                              : 'border-slate-600 bg-transparent'
-                          }`}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium text-slate-200">
+                      End Time <span className="text-rose-400">*</span>
+                    </label>
+                    <div className="flex items-center gap-1">
+                      {[15, 30, 60].map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => handleSetDuration(m)}
+                          className="px-1.5 py-0.2 rounded text-[10px] bg-[#21262d] text-slate-300 hover:text-white hover:bg-blue-600/30"
                         >
-                          {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
-                        </div>
-                        <UserAvatar
-                          name={emp.full_name}
-                          avatarUrl={emp.avatar_url}
-                          size="sm"
-                          className="h-5 w-5 text-[9px]"
-                        />
-                        <div className="truncate">
-                          <span className="text-xs font-medium text-slate-200 truncate">
-                            {emp.full_name}
-                          </span>
-                          {isHost && (
-                            <span className="ml-1.5 text-[9px] px-1 py-0.2 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                              Host
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <span className="text-[10px] text-slate-400 truncate max-w-[140px]">
-                        {emp.designation_title || emp.role?.replace('_', ' ')}
-                      </span>
+                          {m}m
+                        </button>
+                      ))}
                     </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
+                  </div>
+                  <Input
+                    type="datetime-local"
+                    {...register('end_time')}
+                    className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg focus:border-blue-500"
+                  />
+                  {errors.end_time && (
+                    <p className="text-[11px] text-rose-400 mt-1">{errors.end_time.message}</p>
+                  )}
+                </div>
+              </div>
 
-          {/* Agenda */}
-          <div>
-            <label className="text-xs font-medium text-slate-200 block mb-1">
-              Agenda & Notes (Optional)
-            </label>
-            <Textarea
-              placeholder="Outline discussion points or sprint deliverables..."
-              rows={2}
-              {...register('agenda')}
-              className="bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 rounded-lg focus:border-blue-500"
-            />
+              {/* Meeting Video Link */}
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Meeting Video Link
+                </label>
+                <Input
+                  placeholder="https://meet.google.com/abc-defg-hij"
+                  {...register('meeting_url')}
+                  className="h-8 bg-[#161b22] border-[#30363d] text-xs text-blue-300 font-mono placeholder:text-slate-500 rounded-lg focus:border-blue-500"
+                />
+              </div>
+
+              {/* Agenda */}
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Agenda & Notes (Optional)
+                </label>
+                <Textarea
+                  placeholder="Outline discussion points, deliverables, or notes..."
+                  rows={2}
+                  {...register('agenda')}
+                  className="bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 rounded-lg focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Right Column: Teammates Attendee Roster (5 cols) */}
+            <div className="md:col-span-5 flex flex-col space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-slate-200 flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-blue-400" />
+                  <span>Invite Teammates ({selectedEmployeeIds.length})</span>
+                </label>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={selectAllEmployees}
+                    className="text-blue-400 hover:underline"
+                  >
+                    Select All
+                  </button>
+                  <span className="text-slate-600">•</span>
+                  <button
+                    type="button"
+                    onClick={deselectAllEmployees}
+                    className="text-slate-400 hover:underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search teammates..."
+                  value={employeeSearch}
+                  onChange={(e) => setEmployeeSearch(e.target.value)}
+                  className="w-full h-7.5 bg-[#161b22] border border-[#30363d] rounded-lg pl-8 pr-2.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="h-[285px] overflow-y-auto rounded-lg border border-[#30363d] bg-[#161b22] divide-y divide-[#21262d]">
+                {filteredEmployees.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-500">
+                    No teammates found.
+                  </div>
+                ) : (
+                  filteredEmployees.map((emp) => {
+                    const hostId = editingMeeting ? editingMeeting.created_by : currentUser.id;
+                    const isHost = emp.id === hostId;
+                    const isSelected = isHost || selectedEmployeeIds.includes(emp.id);
+
+                    return (
+                      <div
+                        key={emp.id}
+                        onClick={() => toggleEmployee(emp.id)}
+                        className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'bg-blue-600/10 text-white'
+                            : 'hover:bg-[#21262d] text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
+                              isSelected
+                                ? 'bg-blue-600 border-blue-500 text-white'
+                                : 'border-slate-600 bg-transparent'
+                            }`}
+                          >
+                            {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                          </div>
+                          <UserAvatar
+                            name={emp.full_name}
+                            avatarUrl={emp.avatar_url}
+                            size="sm"
+                            className="h-5 w-5 text-[9px]"
+                          />
+                          <div className="truncate">
+                            <span className="text-xs font-medium text-slate-200 truncate">
+                              {emp.full_name}
+                            </span>
+                            {isHost && (
+                              <span className="ml-1 text-[9px] px-1 py-0.2 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                Host
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <span className="text-[10px] text-slate-400 truncate max-w-[100px]">
+                          {emp.designation_title || emp.role?.replace('_', ' ')}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Footer Actions */}
