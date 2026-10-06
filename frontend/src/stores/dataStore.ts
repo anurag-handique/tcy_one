@@ -122,6 +122,8 @@ interface DataState {
 
   // Meeting Actions
   createMeeting: (meeting: Omit<Meeting, 'id' | 'created_at' | 'updated_at'>) => Meeting;
+  updateMeeting: (id: string, updates: Partial<Meeting>) => void;
+  deleteMeeting: (id: string) => void;
   updateMeetingStatus: (id: string, status: Meeting['status']) => void;
   respondToMeeting: (meetingId: string, employeeId: string, status: ParticipantStatus, declineReason?: string) => void;
 
@@ -964,6 +966,69 @@ export const useDataStore = create<DataState>()(
         }
 
         return newMeeting;
+      },
+
+      updateMeeting: (id, updates) => {
+        const state = get();
+        const existingMeeting = state.meetings.find((m) => m.id === id);
+        if (!existingMeeting) return;
+
+        const updatedMeeting: Meeting = {
+          ...existingMeeting,
+          ...updates,
+          updated_at: new Date().toISOString(),
+        };
+
+        set((prevState) => ({
+          meetings: prevState.meetings.map((m) => (m.id === id ? updatedMeeting : m)),
+        }));
+
+        if (supabase && isSupabaseConfigured) {
+          const client = supabase;
+          client
+            .from('meetings')
+            .update({
+              title: updates.title !== undefined ? updates.title : existingMeeting.title,
+              description: updates.description !== undefined ? updates.description : existingMeeting.description,
+              agenda: updates.agenda !== undefined ? updates.agenda : existingMeeting.agenda,
+              meeting_url: updates.meeting_url !== undefined ? updates.meeting_url : existingMeeting.meeting_url,
+              room_location: updates.room_location !== undefined ? updates.room_location : existingMeeting.room_location,
+              start_time: updates.start_time !== undefined ? updates.start_time : existingMeeting.start_time,
+              end_time: updates.end_time !== undefined ? updates.end_time : existingMeeting.end_time,
+              status: updates.status !== undefined ? updates.status : existingMeeting.status,
+              project_id: updates.project_id !== undefined ? updates.project_id : existingMeeting.project_id,
+            })
+            .eq('id', id)
+            .then(null, (err: any) => console.warn('Supabase meeting update:', err?.message || err));
+
+          if (updates.participants && updates.participants.length > 0) {
+            const participantRows = updates.participants.map((p) => ({
+              meeting_id: id,
+              employee_id: p.employee_id,
+              status: p.status,
+              decline_reason: p.decline_reason || null,
+            }));
+            client
+              .from('meeting_participants')
+              .upsert(participantRows)
+              .then(null, (e: any) => console.warn('Participants update:', e?.message || e));
+          }
+        }
+      },
+
+      deleteMeeting: (id) => {
+        set((prevState) => ({
+          meetings: prevState.meetings.filter((m) => m.id !== id),
+        }));
+
+        if (supabase && isSupabaseConfigured) {
+          const client = supabase;
+          client
+            .from('meetings')
+            .delete()
+            .eq('id', id)
+            .then(null, (err: any) => console.warn('Supabase meeting delete:', err?.message || err));
+        }
       },
 
       updateMeetingStatus: (id, status) => {

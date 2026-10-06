@@ -17,6 +17,8 @@ import {
   Check,
   X,
   Sparkles,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
@@ -30,9 +32,12 @@ import { toast } from 'sonner';
 import { Meeting, MeetingParticipant } from '@/types';
 
 export function MeetingsPage() {
-  const { currentUser } = useAuthStore();
-  const { meetings, projects, profiles, respondToMeeting, updateMeetingStatus } = useDataStore();
+  const { currentUser, activeRole } = useAuthStore();
+  const { meetings, projects, profiles, respondToMeeting, deleteMeeting, updateMeetingStatus } = useDataStore();
   const { setMeetingModalOpen } = useUIStore();
+
+  const isElevatedUser =
+    activeRole === 'super_admin' || activeRole === 'admin' || activeRole === 'manager';
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -42,6 +47,10 @@ export function MeetingsPage() {
   const [declineModalOpen, setDeclineModalOpen] = React.useState(false);
   const [targetMeeting, setTargetMeeting] = React.useState<Meeting | null>(null);
   const [declineReason, setDeclineReason] = React.useState('');
+
+  // Delete Confirmation Dialog State
+  const [deleteModalOpen, setDeleteModalOpen] = React.useState(false);
+  const [meetingToDelete, setMeetingToDelete] = React.useState<Meeting | null>(null);
 
   // Attendee Roster Modal State
   const [rosterModalOpen, setRosterModalOpen] = React.useState(false);
@@ -58,7 +67,6 @@ export function MeetingsPage() {
   // Open Decline Dialog
   const handleOpenDeclineModal = (meeting: Meeting) => {
     setTargetMeeting(meeting);
-    // Pre-fill existing decline reason if available
     const existingP = meeting.participants?.find((p) => p.employee_id === currentUser.id);
     setDeclineReason(existingP?.decline_reason || '');
     setDeclineModalOpen(true);
@@ -78,6 +86,26 @@ export function MeetingsPage() {
   const handleAcceptMeeting = (meeting: Meeting) => {
     respondToMeeting(meeting.id, currentUser.id, 'accepted');
     toast.success('Accepted meeting invitation');
+  };
+
+  // Open Delete Confirmation
+  const handleOpenDeleteModal = (meeting: Meeting) => {
+    setMeetingToDelete(meeting);
+    setDeleteModalOpen(true);
+  };
+
+  // Confirm Delete Meeting
+  const handleConfirmDelete = () => {
+    if (!meetingToDelete) return;
+    deleteMeeting(meetingToDelete.id);
+    toast.success(`Meeting "${meetingToDelete.title}" deleted`);
+    setDeleteModalOpen(false);
+    setMeetingToDelete(null);
+  };
+
+  // Open Edit Modal
+  const handleEditMeeting = (meeting: Meeting) => {
+    setMeetingModalOpen(true, meeting.id);
   };
 
   // Filtered Meetings
@@ -146,7 +174,7 @@ export function MeetingsPage() {
 
         <Button
           size="sm"
-          onClick={() => setMeetingModalOpen(true)}
+          onClick={() => setMeetingModalOpen(true, null)}
           className="h-7 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium gap-1"
         >
           <Plus className="h-3.5 w-3.5" />
@@ -230,7 +258,7 @@ export function MeetingsPage() {
                 : 'Schedule a sprint review, squad sync, or architecture check-in.'}
             </p>
           </div>
-          <Button size="sm" onClick={() => setMeetingModalOpen(true)} className="h-7 text-xs bg-blue-600 gap-1 font-mono">
+          <Button size="sm" onClick={() => setMeetingModalOpen(true, null)} className="h-7 text-xs bg-blue-600 gap-1 font-mono">
             <Plus className="h-3.5 w-3.5" />
             <span>Schedule Meeting</span>
           </Button>
@@ -241,6 +269,7 @@ export function MeetingsPage() {
             const host = profiles.find((p) => p.id === m.created_by) || m.creator;
             const proj = projects.find((p) => p.id === m.project_id);
             const isCreator = m.created_by === currentUser.id;
+            const canManage = isCreator || isElevatedUser;
 
             const participants = m.participants || [];
             const myParticipant = participants.find((p) => p.employee_id === currentUser.id);
@@ -256,7 +285,7 @@ export function MeetingsPage() {
                 className="desktop-panel rounded-lg p-4 flex flex-col justify-between space-y-3.5 border border-[#1b202c] hover:border-[#2a3449] transition-all bg-[#0d1017]"
               >
                 <div>
-                  {/* Top Bar: Project Tag & Status */}
+                  {/* Top Bar: Project Tag, Status & Action Icons (Edit / Delete) */}
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-1.5">
                       <span className="font-mono text-[10px] bg-[#141824] border border-[#232a38] px-2 py-0.5 rounded text-blue-300 font-semibold">
@@ -264,17 +293,38 @@ export function MeetingsPage() {
                       </span>
                     </div>
 
-                    <span
-                      className={`text-[9px] font-mono px-2 py-0.5 rounded border uppercase font-semibold ${
-                        m.status === 'scheduled'
-                          ? 'text-purple-400 bg-purple-500/10 border-purple-500/20'
-                          : m.status === 'ongoing'
-                          ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20 animate-pulse'
-                          : 'text-slate-400 bg-slate-500/10 border-slate-500/20'
-                      }`}
-                    >
-                      {m.status}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`text-[9px] font-mono px-2 py-0.5 rounded border uppercase font-semibold ${
+                          m.status === 'scheduled'
+                            ? 'text-purple-400 bg-purple-500/10 border-purple-500/20'
+                            : m.status === 'ongoing'
+                            ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20 animate-pulse'
+                            : 'text-slate-400 bg-slate-500/10 border-slate-500/20'
+                        }`}
+                      >
+                        {m.status}
+                      </span>
+
+                      {canManage && (
+                        <div className="flex items-center gap-1 ml-1 bg-[#090b10] p-0.5 rounded border border-[#1b202c]">
+                          <button
+                            onClick={() => handleEditMeeting(m)}
+                            className="p-1 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
+                            title="Edit Meeting"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenDeleteModal(m)}
+                            className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                            title="Delete Meeting"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Title & Description */}
@@ -454,12 +504,23 @@ export function MeetingsPage() {
                     )}
                   </div>
 
-                  {/* User's RSVP Controls */}
+                  {/* User's RSVP Controls & Host Actions */}
                   <div className="flex items-center gap-1.5">
                     {isCreator ? (
-                      <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
-                        You are Host
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
+                          Host
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditMeeting(m)}
+                          className="h-6 text-[10px] font-mono border-[#242b3c] bg-[#10141f] text-slate-300 hover:text-white gap-1 px-2"
+                        >
+                          <Pencil className="h-2.5 w-2.5" />
+                          <span>Edit</span>
+                        </Button>
+                      </div>
                     ) : (
                       <div className="flex items-center gap-1.5 bg-[#090b10] p-1 rounded border border-[#1b202c]">
                         {myRsvp === 'accepted' ? (
@@ -517,6 +578,67 @@ export function MeetingsPage() {
           })}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded bg-rose-600/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                <Trash2 className="h-4 w-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-sm font-bold text-white font-mono">
+                  DELETE INTERNAL MEETING
+                </DialogTitle>
+                <p className="text-[11px] text-slate-400">
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-2 pt-2 text-xs">
+            <div className="p-3 rounded bg-[#090b10] border border-[#1b202c] space-y-1">
+              <span className="text-[10px] uppercase font-mono text-slate-500 block">Meeting:</span>
+              <p className="text-sm font-bold text-slate-100">{meetingToDelete?.title}</p>
+              {meetingToDelete && (
+                <p className="text-[11px] text-slate-400 font-mono">
+                  Scheduled for {formatDate(meetingToDelete.start_time, 'EEE, dd MMM yyyy')} ({formatTime(meetingToDelete.start_time)})
+                </p>
+              )}
+            </div>
+
+            <p className="text-[11px] text-rose-400 font-mono">
+              Are you sure you want to cancel and permanently delete this internal meeting for all invited participants?
+            </p>
+          </div>
+
+          <DialogFooter className="pt-3 border-t border-[#1b202c]">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setDeleteModalOpen(false);
+                setMeetingToDelete(null);
+              }}
+              className="h-7 text-xs border-[#222837] bg-[#12151e]"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleConfirmDelete}
+              className="h-7 text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium gap-1"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Delete Meeting</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Decline Reason Dialog */}
       <Dialog open={declineModalOpen} onOpenChange={setDeclineModalOpen}>

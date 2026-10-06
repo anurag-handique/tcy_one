@@ -27,9 +27,15 @@ const meetingSchema = z.object({
 type MeetingFormData = z.infer<typeof meetingSchema>;
 
 export function ScheduleMeetingModal() {
-  const { activeMeetingModalOpen, setMeetingModalOpen } = useUIStore();
-  const { projects, profiles, createMeeting } = useDataStore();
+  const { activeMeetingModalOpen, editingMeetingId, setMeetingModalOpen } = useUIStore();
+  const { projects, profiles, meetings, createMeeting, updateMeeting } = useDataStore();
   const { currentUser } = useAuthStore();
+
+  const isEditMode = !!editingMeetingId;
+  const editingMeeting = React.useMemo(() => {
+    if (!editingMeetingId) return null;
+    return meetings.find((m) => m.id === editingMeetingId) || null;
+  }, [editingMeetingId, meetings]);
 
   const defaultStart = new Date(Date.now() + 2 * 3600 * 1000).toISOString().slice(0, 16);
   const defaultEnd = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 16);
@@ -37,16 +43,6 @@ export function ScheduleMeetingModal() {
   // Attendee multi-select state
   const [selectedEmployeeIds, setSelectedEmployeeIds] = React.useState<string[]>([]);
   const [employeeSearch, setEmployeeSearch] = React.useState('');
-
-  // Initial load / modal open: automatically select everyone or creator + others
-  React.useEffect(() => {
-    if (activeMeetingModalOpen) {
-      if (profiles && profiles.length > 0) {
-        // Pre-select all squad members by default for convenience, or at least currentUser
-        setSelectedEmployeeIds(profiles.map((p) => p.id));
-      }
-    }
-  }, [activeMeetingModalOpen, profiles]);
 
   const {
     register,
@@ -68,6 +64,53 @@ export function ScheduleMeetingModal() {
     },
   });
 
+  // Load meeting data when opening modal
+  React.useEffect(() => {
+    if (activeMeetingModalOpen) {
+      if (editingMeeting) {
+        setValue('title', editingMeeting.title);
+        setValue('description', editingMeeting.description || '');
+        setValue('agenda', editingMeeting.agenda || '');
+        setValue('meeting_url', editingMeeting.meeting_url || '');
+        setValue('room_location', editingMeeting.room_location || 'Virtual / Room 1');
+        setValue(
+          'start_time',
+          editingMeeting.start_time
+            ? new Date(editingMeeting.start_time).toISOString().slice(0, 16)
+            : defaultStart
+        );
+        setValue(
+          'end_time',
+          editingMeeting.end_time
+            ? new Date(editingMeeting.end_time).toISOString().slice(0, 16)
+            : defaultEnd
+        );
+        setValue('project_id', editingMeeting.project_id || '');
+
+        const existingParticipantIds = (editingMeeting.participants || []).map((p) => p.employee_id);
+        setSelectedEmployeeIds(
+          existingParticipantIds.length > 0
+            ? existingParticipantIds
+            : profiles.map((p) => p.id)
+        );
+      } else {
+        reset({
+          title: '',
+          description: '',
+          agenda: '1. Sync objectives\n2. Key deliverables\n3. Action items & Q&A',
+          meeting_url: '',
+          room_location: 'Virtual / Room 1',
+          start_time: defaultStart,
+          end_time: defaultEnd,
+          project_id: '',
+        });
+        if (profiles && profiles.length > 0) {
+          setSelectedEmployeeIds(profiles.map((p) => p.id));
+        }
+      }
+    }
+  }, [activeMeetingModalOpen, editingMeeting, profiles, reset, setValue, defaultStart, defaultEnd]);
+
   const filteredEmployees = React.useMemo(() => {
     const q = employeeSearch.toLowerCase().trim();
     if (!q) return profiles;
@@ -81,7 +124,8 @@ export function ScheduleMeetingModal() {
   }, [profiles, employeeSearch]);
 
   const toggleEmployee = (empId: string) => {
-    if (empId === currentUser.id) return; // Organizer always stays included
+    const hostId = editingMeeting ? editingMeeting.created_by : currentUser.id;
+    if (empId === hostId) return; // Organizer always stays included
     setSelectedEmployeeIds((prev) =>
       prev.includes(empId) ? prev.filter((id) => id !== empId) : [...prev, empId]
     );
@@ -92,45 +136,83 @@ export function ScheduleMeetingModal() {
   };
 
   const deselectAllEmployees = () => {
-    // Keep at least the current user (organizer)
-    setSelectedEmployeeIds([currentUser.id]);
+    const hostId = editingMeeting ? editingMeeting.created_by : currentUser.id;
+    setSelectedEmployeeIds([hostId]);
   };
 
   const handleGenerateLink = () => {
-    const randomCode = Math.random().toString(36).substring(2, 5) + '-' + Math.random().toString(36).substring(2, 6) + '-' + Math.random().toString(36).substring(2, 5);
+    const randomCode =
+      Math.random().toString(36).substring(2, 5) +
+      '-' +
+      Math.random().toString(36).substring(2, 6) +
+      '-' +
+      Math.random().toString(36).substring(2, 5);
     const generatedUrl = `https://meet.google.com/${randomCode}`;
     setValue('meeting_url', generatedUrl, { shouldValidate: true });
     toast.success('Generated Google Meet link');
   };
 
   const onSubmit = (data: MeetingFormData) => {
-    // Ensure creator is always included
-    const allIds = Array.from(new Set([currentUser.id, ...selectedEmployeeIds]));
+    const hostId = editingMeeting ? editingMeeting.created_by : currentUser.id;
+    const allIds = Array.from(new Set([hostId, ...selectedEmployeeIds]));
 
-    const participants = allIds.map((empId) => ({
-      id: 'mp-' + Date.now() + '-' + empId,
-      meeting_id: '',
-      employee_id: empId,
-      status: empId === currentUser.id ? ('accepted' as const) : ('invited' as const),
-    }));
+    if (isEditMode && editingMeeting) {
+      // Preserve existing participant statuses if already responded
+      const existingParticipants = editingMeeting.participants || [];
+      const updatedParticipants = allIds.map((empId) => {
+        const found = existingParticipants.find((p) => p.employee_id === empId);
+        if (found) {
+          return found;
+        }
+        return {
+          id: 'mp-' + Date.now() + '-' + empId,
+          meeting_id: editingMeeting.id,
+          employee_id: empId,
+          status: empId === hostId ? ('accepted' as const) : ('invited' as const),
+        };
+      });
 
-    createMeeting({
-      title: data.title,
-      description: data.description || undefined,
-      agenda: data.agenda || undefined,
-      meeting_url: data.meeting_url || undefined,
-      room_location: data.room_location || undefined,
-      start_time: new Date(data.start_time).toISOString(),
-      end_time: new Date(data.end_time).toISOString(),
-      status: 'scheduled',
-      created_by: currentUser.id,
-      project_id: data.project_id || undefined,
-      participants,
-    });
+      updateMeeting(editingMeeting.id, {
+        title: data.title,
+        description: data.description || undefined,
+        agenda: data.agenda || undefined,
+        meeting_url: data.meeting_url || undefined,
+        room_location: data.room_location || undefined,
+        start_time: new Date(data.start_time).toISOString(),
+        end_time: new Date(data.end_time).toISOString(),
+        project_id: data.project_id || undefined,
+        participants: updatedParticipants,
+      });
 
-    toast.success(`Meeting scheduled with ${participants.length} team members invited`);
-    reset();
-    setMeetingModalOpen(false);
+      toast.success('Meeting updated successfully');
+      reset();
+      setMeetingModalOpen(false);
+    } else {
+      const participants = allIds.map((empId) => ({
+        id: 'mp-' + Date.now() + '-' + empId,
+        meeting_id: '',
+        employee_id: empId,
+        status: empId === currentUser.id ? ('accepted' as const) : ('invited' as const),
+      }));
+
+      createMeeting({
+        title: data.title,
+        description: data.description || undefined,
+        agenda: data.agenda || undefined,
+        meeting_url: data.meeting_url || undefined,
+        room_location: data.room_location || undefined,
+        start_time: new Date(data.start_time).toISOString(),
+        end_time: new Date(data.end_time).toISOString(),
+        status: 'scheduled',
+        created_by: currentUser.id,
+        project_id: data.project_id || undefined,
+        participants,
+      });
+
+      toast.success(`Meeting scheduled with ${participants.length} team members invited`);
+      reset();
+      setMeetingModalOpen(false);
+    }
   };
 
   return (
@@ -142,11 +224,13 @@ export function ScheduleMeetingModal() {
               <Video className="h-4 w-4" />
             </div>
             <div>
-              <DialogTitle className="text-sm font-bold text-white font-mono">
-                SCHEDULE INTERNAL MEETING
+              <DialogTitle className="text-sm font-bold text-white font-mono uppercase">
+                {isEditMode ? 'EDIT INTERNAL MEETING' : 'SCHEDULE INTERNAL MEETING'}
               </DialogTitle>
               <p className="text-[11px] text-slate-400">
-                Set meeting schedule, project alignment, and invite squad members.
+                {isEditMode
+                  ? 'Update meeting details, time slot, agenda, and invited attendees.'
+                  : 'Set meeting schedule, project alignment, and invite squad members.'}
               </p>
             </div>
           </div>
@@ -368,7 +452,7 @@ export function ScheduleMeetingModal() {
               disabled={isSubmitting}
               className="h-7 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium"
             >
-              Schedule & Invite ({selectedEmployeeIds.length})
+              {isEditMode ? 'Update Meeting' : `Schedule & Invite (${selectedEmployeeIds.length})`}
             </Button>
           </DialogFooter>
         </form>

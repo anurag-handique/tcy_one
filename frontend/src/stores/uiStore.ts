@@ -20,6 +20,7 @@ interface UIState {
   activeTaskModalOpen: boolean;
   activeStandupModalOpen: boolean;
   activeMeetingModalOpen: boolean;
+  editingMeetingId: string | null;
   activePunchModalOpen: boolean;
   punchModalMode: 'in' | 'out';
   toggleSidebar: () => void;
@@ -35,7 +36,8 @@ interface UIState {
   setLeaveModalOpen: (open: boolean) => void;
   setTaskModalOpen: (open: boolean) => void;
   setStandupModalOpen: (open: boolean) => void;
-  setMeetingModalOpen: (open: boolean) => void;
+  setMeetingModalOpen: (open: boolean, meetingId?: string | null) => void;
+  setEditingMeetingId: (id: string | null) => void;
   setPunchModalOpen: (open: boolean, mode?: 'in' | 'out') => void;
 }
 
@@ -55,6 +57,7 @@ export const useUIStore = create<UIState>()(
       activeTaskModalOpen: false,
       activeStandupModalOpen: false,
       activeMeetingModalOpen: false,
+      editingMeetingId: null,
       activePunchModalOpen: false,
       punchModalMode: 'in',
 
@@ -71,7 +74,9 @@ export const useUIStore = create<UIState>()(
       setLeaveModalOpen: (open) => set({ activeLeaveModalOpen: open }),
       setTaskModalOpen: (open) => set({ activeTaskModalOpen: open }),
       setStandupModalOpen: (open) => set({ activeStandupModalOpen: open }),
-      setMeetingModalOpen: (open) => set({ activeMeetingModalOpen: open }),
+      setMeetingModalOpen: (open, meetingId = null) =>
+        set({ activeMeetingModalOpen: open, editingMeetingId: open ? meetingId : null }),
+      setEditingMeetingId: (id) => set({ editingMeetingId: id }),
       setPunchModalOpen: (open, mode = 'in') => set({ activePunchModalOpen: open, punchModalMode: mode }),
     }),
     {
