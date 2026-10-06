@@ -35,8 +35,11 @@ export function TeamPage() {
   const { profiles, departments, designations, createEmployeeAccount, addDepartment, updateProfileData, deleteProfile } = useDataStore();
   const { currentUser, activeRole } = useAuthStore();
 
-  // Strict check: ONLY Super Admin (info@thecodeyogi.com) is allowed to create, edit & remove employees & departments
-  const isSuperAdmin = activeRole === 'super_admin' || currentUser.email === 'info@thecodeyogi.com';
+  // Strict check: ONLY Super Admin is allowed to create, edit & remove employees & departments
+  const isSuperAdmin =
+    activeRole === 'super_admin' ||
+    currentUser?.role === 'super_admin' ||
+    currentUser?.email === 'info@thecodeyogi.com';
 
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedDept, setSelectedDept] = React.useState('all');

@@ -214,7 +214,8 @@ export const useDataStore = create<DataState>()(
                 ]
               : currentAttendance;
 
-          const activeDesignations = desigData || [];
+          const activeDesignations = desigData && desigData.length > 0 ? desigData : get().designations;
+          const activeDepartments = deptData && deptData.length > 0 ? deptData : get().departments;
 
           const rawProfiles = profilesData || [];
 
@@ -228,20 +229,35 @@ export const useDataStore = create<DataState>()(
             };
           });
 
+          // Merge with current state profiles so freshly added / local profiles are NEVER lost
+          const currentProfiles = get().profiles || [];
+          const profileMap = new Map<string, Profile>();
+          currentProfiles.forEach((p) => {
+            if (p.email) profileMap.set(p.email.toLowerCase(), p);
+            else if (p.id) profileMap.set(p.id, p);
+          });
+          enrichedProfiles.forEach((p) => {
+            const key = p.email ? p.email.toLowerCase() : p.id;
+            const existing = profileMap.get(key);
+            profileMap.set(key, { ...(existing || {}), ...p });
+          });
+
+          const finalProfiles = Array.from(profileMap.values());
+
           set({
-            profiles: enrichedProfiles,
-            departments: deptData || [],
+            profiles: finalProfiles.length > 0 ? finalProfiles : currentProfiles,
+            departments: activeDepartments,
             designations: activeDesignations,
-            attendance: attendanceData || [],
-            leaveTypes: leaveTypesData || [],
-            leaveRequests: leaveReqsData || [],
-            projects: projectsData || [],
-            tasks: tasksData || [],
-            standups: standupsData || [],
-            standupResponses: standupResponsesData || [],
-            meetings: meetingsData || [],
-            notifications: notifsData || [],
-            holidays: holidaysData || [],
+            attendance: mergedAttendance,
+            leaveTypes: leaveTypesData && leaveTypesData.length > 0 ? leaveTypesData : get().leaveTypes,
+            leaveRequests: leaveReqsData && leaveReqsData.length > 0 ? leaveReqsData : get().leaveRequests,
+            projects: projectsData && projectsData.length > 0 ? projectsData : get().projects,
+            tasks: tasksData && tasksData.length > 0 ? tasksData : get().tasks,
+            standups: standupsData && standupsData.length > 0 ? standupsData : get().standups,
+            standupResponses: standupResponsesData && standupResponsesData.length > 0 ? standupResponsesData : get().standupResponses,
+            meetings: meetingsData && meetingsData.length > 0 ? meetingsData : get().meetings,
+            notifications: notifsData && notifsData.length > 0 ? notifsData : get().notifications,
+            holidays: holidaysData && holidaysData.length > 0 ? holidaysData : get().holidays,
             isLoadingFromSupabase: false,
           });
         } catch (err) {
@@ -1011,6 +1027,37 @@ export const useDataStore = create<DataState>()(
             });
 
             if (!error) {
+              const rpcData = data as any;
+              const newProf: Profile = {
+                id: rpcData?.user_id || ('prof-' + Date.now()),
+                user_id: rpcData?.user_id || ('prof-' + Date.now()),
+                email: payload.email.trim().toLowerCase(),
+                full_name: payload.fullName.trim(),
+                role: payload.role,
+                department_id: rpcData?.department_id || undefined,
+                designation_id: rpcData?.designation_id || undefined,
+                designation_title: payload.designationTitle?.trim() || 'Software Engineer',
+                phone: payload.phone?.trim() || '',
+                work_location: payload.workLocation?.trim() || 'Office',
+                employment_status: 'active',
+                joining_date: new Date().toISOString().split('T')[0],
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              };
+
+              set((state) => {
+                const existingIdx = state.profiles.findIndex(
+                  (p) => p.email.toLowerCase() === newProf.email.toLowerCase() || p.id === newProf.id
+                );
+                const nextProfiles = [...state.profiles];
+                if (existingIdx >= 0) {
+                  nextProfiles[existingIdx] = { ...nextProfiles[existingIdx], ...newProf };
+                } else {
+                  nextProfiles.unshift(newProf);
+                }
+                return { profiles: nextProfiles };
+              });
+
               await get().fetchSupabaseData();
               return { success: true };
             }
@@ -1107,6 +1154,36 @@ export const useDataStore = create<DataState>()(
               console.error('Direct profile upsert error:', profError);
               return { success: false, error: profError.message };
             }
+
+            const fallbackProf: Profile = {
+              id: newProfileId,
+              user_id: authUserId || newProfileId,
+              email: payload.email.trim().toLowerCase(),
+              full_name: payload.fullName.trim(),
+              role: payload.role,
+              department_id: deptId,
+              designation_id: desigId,
+              designation_title: payload.designationTitle?.trim() || 'Software Engineer',
+              phone: payload.phone?.trim() || '',
+              work_location: payload.workLocation?.trim() || 'Office',
+              employment_status: 'active',
+              joining_date: today,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+
+            set((state) => {
+              const existingIdx = state.profiles.findIndex(
+                (p) => p.email.toLowerCase() === fallbackProf.email.toLowerCase() || p.id === fallbackProf.id
+              );
+              const nextProfiles = [...state.profiles];
+              if (existingIdx >= 0) {
+                nextProfiles[existingIdx] = { ...nextProfiles[existingIdx], ...fallbackProf };
+              } else {
+                nextProfiles.unshift(fallbackProf);
+              }
+              return { profiles: nextProfiles };
+            });
 
             await get().fetchSupabaseData();
             return { success: true };

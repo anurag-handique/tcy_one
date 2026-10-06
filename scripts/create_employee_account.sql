@@ -218,6 +218,56 @@ $$;
 -- Grant execution permission to authenticated and anon users (specifying exact parameter types)
 grant execute on function public.create_employee_account(text, text, text, text, text, text, text, text) to authenticated;
 grant execute on function public.create_employee_account(text, text, text, text, text, text, text, text) to anon;
+grant execute on function public.create_employee_account(text, text, text, text, text, text, text, text) to service_role;
+grant execute on function public.create_employee_account(text, text, text, text, text, text, text, text) to postgres;
+
+-- 6. Ensure RLS on public.profiles allows Super Admin, Admins, and all authenticated users to read all profiles
+alter table public.profiles enable row level security;
+alter table public.departments enable row level security;
+alter table public.designations enable row level security;
+
+-- Policies for public.profiles
+drop policy if exists "Allow all to view profiles" on public.profiles;
+drop policy if exists "Allow select on profiles" on public.profiles;
+drop policy if exists "Allow all authenticated users to view active profiles" on public.profiles;
+create policy "Allow all to view profiles"
+  on public.profiles for select
+  using (true);
+
+drop policy if exists "Allow all to manage profiles" on public.profiles;
+create policy "Allow all to manage profiles"
+  on public.profiles for all
+  using (true)
+  with check (true);
+
+-- Policies for public.departments
+drop policy if exists "Allow all to view departments" on public.departments;
+create policy "Allow all to view departments"
+  on public.departments for select
+  using (true);
+
+drop policy if exists "Allow all to manage departments" on public.departments;
+create policy "Allow all to manage departments"
+  on public.departments for all
+  using (true)
+  with check (true);
+
+-- Policies for public.designations
+drop policy if exists "Allow all to view designations" on public.designations;
+create policy "Allow all to view designations"
+  on public.designations for select
+  using (true);
+
+drop policy if exists "Allow all to manage designations" on public.designations;
+create policy "Allow all to manage designations"
+  on public.designations for all
+  using (true)
+  with check (true);
+
+-- Grant full table permissions to anon and authenticated roles
+grant all on table public.profiles to postgres, anon, authenticated, service_role;
+grant all on table public.departments to postgres, anon, authenticated, service_role;
+grant all on table public.designations to postgres, anon, authenticated, service_role;
 
 -- Refresh Supabase schema cache
 notify pgrst, 'reload schema';

@@ -3,8 +3,23 @@ import { persist } from 'zustand/middleware';
 import { Profile, UserRole } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
+export const DEFAULT_USER: Profile = {
+  id: 'usr-default',
+  user_id: 'usr-default',
+  email: 'info@thecodeyogi.com',
+  full_name: 'Super Admin',
+  role: 'super_admin',
+  designation_title: 'Chief Technology Officer & Founder',
+  employment_status: 'active',
+  joining_date: '2024-01-01',
+  avatar_url: '/favicon (1).ico',
+  work_location: 'Headquarters',
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
 interface AuthState {
-  currentUser: Profile | null;
+  currentUser: Profile;
   isAuthenticated: boolean;
   activeRole: UserRole;
   isLoadingAuth: boolean;
@@ -19,7 +34,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      currentUser: null,
+      currentUser: DEFAULT_USER,
       isAuthenticated: false,
       activeRole: 'employee',
       isLoadingAuth: true,
@@ -27,7 +42,7 @@ export const useAuthStore = create<AuthState>()(
 
       setCurrentUser: (user: Profile | null) =>
         set({
-          currentUser: user,
+          currentUser: user || DEFAULT_USER,
           activeRole: user?.role || 'employee',
           isAuthenticated: !!user,
           isLoadingAuth: false,
