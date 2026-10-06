@@ -180,10 +180,10 @@ export function TopBar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="flex h-6.5 w-6.5 items-center justify-center rounded-none p-0 border border-[#242c3d] bg-[#121620] hover:border-blue-500/60 transition-all cursor-pointer select-none"
+              className="flex h-7 w-7 items-center justify-center rounded-full p-0 border border-[#283245] bg-[#121620] hover:border-blue-500/80 transition-all cursor-pointer select-none overflow-hidden ring-1 ring-blue-500/20"
               title={currentUser.full_name}
             >
-              <UserAvatar name={currentUser.full_name} avatarUrl={currentUser.avatar_url} size="sm" className="h-5.5 w-5.5 text-[9px] rounded-none" />
+              <UserAvatar name={currentUser.full_name} avatarUrl={currentUser.avatar_url} size="sm" className="h-full w-full text-[10px] rounded-full" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80 border-[#222837] bg-[#11141c] p-3 shadow-2xl space-y-2.5 rounded-none">
@@ -193,7 +193,7 @@ export function TopBar() {
                 name={currentUser.full_name}
                 avatarUrl={currentUser.avatar_url}
                 size="lg"
-                className="h-12 w-12 text-sm mb-2 ring-1 ring-blue-500/40 rounded-none"
+                className="h-12 w-12 text-sm mb-2 ring-2 ring-blue-500/40 rounded-full"
               />
               <div className="font-bold text-xs text-white leading-tight">
                 {currentUser.full_name}
