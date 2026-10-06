@@ -266,7 +266,7 @@ export function StandupsPage() {
                 : 'bg-blue-600 hover:bg-blue-500 text-white'
             }`}
           >
-            {isBeforeStart ? <Clock className="h-3.5 w-3.5 text-sky-300" /> : <Sparkles className="h-3.5 w-3.5 text-purple-300" />}
+            {isBeforeStart ? <Clock className="h-3.5 w-3.5 text-sky-300" /> : <MessageSquareShare className="h-3.5 w-3.5 text-blue-300" />}
             <span>
               {myResponse
                 ? 'Update My Standup'

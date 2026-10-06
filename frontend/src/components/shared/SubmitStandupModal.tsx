@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
-import { Clock, AlertTriangle, Video, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Clock, AlertTriangle, Video, Sparkles, CheckCircle2, MessageSquareShare } from 'lucide-react';
 import { toast } from 'sonner';
 
 const standupSchema = z.object({
@@ -113,7 +113,7 @@ export function SubmitStandupModal() {
         <DialogHeader className="border-b border-[#1b2230] pb-2.5 pr-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-blue-400" />
+              <MessageSquareShare className="h-4 w-4 text-blue-400" />
               <DialogTitle className="text-base text-white font-mono font-bold">
                 Daily Standup Update
               </DialogTitle>

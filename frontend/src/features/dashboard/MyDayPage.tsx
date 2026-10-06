@@ -10,6 +10,7 @@ import {
   Play,
   Square,
   Sparkles,
+  MessageSquareShare,
   Users,
   Check,
   X,
@@ -123,7 +124,7 @@ export function MyDayPage() {
             onClick={() => setStandupModalOpen(true)}
             className="h-7 text-xs border-[#222837] bg-[#12151e] hover:bg-[#181d28] gap-1.5"
           >
-            <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+            <MessageSquareShare className="h-3.5 w-3.5 text-blue-400" />
             <span>{myStandupResponse ? 'Edit Standup' : 'Submit Standup'}</span>
           </Button>
 
@@ -329,7 +330,7 @@ export function MyDayPage() {
           <div className="desktop-panel rounded-lg overflow-hidden">
             <div className="flex items-center justify-between px-3 py-2 border-b border-[#1b202c] bg-[#0c0e15]">
               <div className="flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+                <MessageSquareShare className="h-3.5 w-3.5 text-blue-400" />
                 <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">
                   Standup Sync
                 </span>

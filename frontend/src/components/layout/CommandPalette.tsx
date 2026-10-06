@@ -12,6 +12,7 @@ import {
   FileText,
   Settings,
   Sparkles,
+  MessageSquareShare,
   Layers,
   ArrowRight,
   LogOut,
@@ -94,7 +95,7 @@ export function CommandPalette() {
                 onSelect={() => runCommand(() => setStandupModalOpen(true))}
                 className="flex items-center gap-2.5 rounded-none px-2.5 py-1.5 text-xs text-slate-200 cursor-pointer hover:bg-blue-600 hover:text-white transition-colors aria-selected:bg-blue-600 aria-selected:text-white"
               >
-                <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+                <MessageSquareShare className="h-3.5 w-3.5 text-blue-400" />
                 <span>Submit Daily Standup</span>
                 <span className="ml-auto text-[10px] opacity-60">Action</span>
               </Command.Item>
