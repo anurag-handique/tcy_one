@@ -223,7 +223,7 @@ export function ScheduleMeetingModal() {
     <Dialog open={activeMeetingModalOpen} onOpenChange={setMeetingModalOpen}>
       <DialogContent className="max-w-4xl w-[94vw] bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-xl">
         {/* Minimal Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#21262d]">
+        <div className="flex items-center justify-between pb-3 border-b border-[#21262d] pr-8">
           <div className="flex items-center gap-2.5">
             <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
               <Video className="h-4 w-4 text-blue-400" />
