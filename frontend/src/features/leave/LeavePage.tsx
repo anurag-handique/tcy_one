@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 
 export function LeavePage() {
   const { currentUser, activeRole } = useAuthStore();
-  const { leaveRequests, leaveTypes, holidays, reviewLeaveRequest, profiles } = useDataStore();
+  const { leaveRequests, leaveTypes, holidays, reviewLeaveRequest, profiles, attendancePolicy } = useDataStore();
   const { setLeaveModalOpen } = useUIStore();
 
   const isManagerOrAdmin = activeRole === 'manager' || activeRole === 'admin' || activeRole === 'super_admin';
@@ -34,6 +34,8 @@ export function LeavePage() {
     EL: Plane,
     CO: Coffee,
   };
+
+  const activeOverrides = attendancePolicy.working_saturdays_override || [];
 
   return (
     <div className="space-y-4">
@@ -222,26 +224,87 @@ export function LeavePage() {
           </TabsContent>
         )}
 
-        {/* Tab 3: Holidays */}
-        <TabsContent value="holidays">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {holidays.map((h) => (
-              <div key={h.id} className="desktop-panel rounded-lg p-3 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-white text-xs">{h.name}</span>
-                    <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 uppercase">
-                      OFFICIAL
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{h.description}</p>
-                </div>
-                <div className="text-right font-mono">
-                  <span className="text-xs font-bold text-blue-400 block">{formatDate(h.holiday_date, 'dd MMM')}</span>
-                  <span className="text-[10px] text-slate-400 uppercase">{formatDate(h.holiday_date, 'EEEE')}</span>
-                </div>
+        {/* Tab 3: Holidays & Saturday Schedule */}
+        <TabsContent value="holidays" className="space-y-3">
+          {/* Saturday Policy Summary Banner */}
+          <div className="desktop-panel rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-blue-950/40 bg-[#0e121a]">
+            <div className="flex items-center gap-2.5">
+              <CalendarDays className="h-4 w-4 text-blue-400 shrink-0" />
+              <div>
+                <span className="text-xs font-bold text-white block">
+                  Saturday Schedule Policy: {attendancePolicy.saturday_off_rule === '3rd_4th' ? '3rd & 4th Saturdays OFF' : attendancePolicy.saturday_off_rule === '2nd_4th' ? '2nd & 4th Saturdays OFF' : attendancePolicy.saturday_off_rule === 'all' ? 'All Saturdays OFF' : 'All Saturdays Working'}
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  1st, 2nd, and 5th Saturdays are regular working days unless declared off.
+                </span>
               </div>
-            ))}
+            </div>
+            {activeOverrides.length > 0 && (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold self-start sm:self-auto">
+                {activeOverrides.length} Urgent Work Saturday(s) Active
+              </span>
+            )}
+          </div>
+
+          {/* Active Working Saturday Overrides (if any) */}
+          {activeOverrides.length > 0 && (
+            <div className="space-y-2">
+              <span className="text-[10px] font-mono uppercase text-purple-400 font-bold tracking-wider block">
+                Urgent Working Saturdays (Enabled by Super Admin)
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                {activeOverrides.map((dateStr) => (
+                  <div
+                    key={dateStr}
+                    className="desktop-panel rounded-lg p-2.5 flex items-center justify-between border-purple-500/30 bg-purple-950/10"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-xs font-mono">
+                          {formatDate(dateStr, 'dd MMMM yyyy')}
+                        </span>
+                        <span className="text-[9px] font-mono text-purple-300 bg-purple-500/20 px-1.5 py-0.2 rounded border border-purple-500/30 uppercase font-bold">
+                          URGENT WORKDAY
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Active shift — standard punch-in and attendance expected.
+                      </p>
+                    </div>
+                    <div className="text-right font-mono">
+                      <span className="text-xs font-bold text-purple-400 block">{formatDate(dateStr, 'dd MMM')}</span>
+                      <span className="text-[10px] text-slate-400 uppercase">Saturday</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Official Company Holidays */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-mono uppercase text-slate-400 font-bold tracking-wider block">
+              Official 2026 Gazetted Holidays
+            </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {holidays.map((h) => (
+                <div key={h.id} className="desktop-panel rounded-lg p-3 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-white text-xs">{h.name}</span>
+                      <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 uppercase">
+                        OFFICIAL
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">{h.description}</p>
+                  </div>
+                  <div className="text-right font-mono">
+                    <span className="text-xs font-bold text-blue-400 block">{formatDate(h.holiday_date, 'dd MMM')}</span>
+                    <span className="text-[10px] text-slate-400 uppercase">{formatDate(h.holiday_date, 'EEEE')}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </TabsContent>
       </Tabs>

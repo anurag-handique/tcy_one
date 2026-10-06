@@ -48,9 +48,10 @@ export function MyDayPage() {
     profiles,
     createTask,
     holidays,
+    attendancePolicy,
   } = useDataStore();
 
-  const { setTaskModalOpen, setStandupModalOpen, setLeaveModalOpen, setMeetingModalOpen } = useUIStore();
+  const { setTaskModalOpen, setStandupModalOpen, setLeaveModalOpen, setMeetingModalOpen, setPunchModalOpen } = useUIStore();
 
   const isManagerOrAdmin = activeRole === 'manager' || activeRole === 'admin' || activeRole === 'super_admin';
 
@@ -59,6 +60,10 @@ export function MyDayPage() {
     (a) => a.employee_id === currentUser.id && a.date === todayStr
   );
   const isClockedIn = Boolean(todayAttendance && !todayAttendance.clock_out);
+
+  const handlePunchToggle = () => {
+    setPunchModalOpen(true, isClockedIn ? 'out' : 'in');
+  };
 
   const myTasks = tasks.filter((t) => t.assignee_id === currentUser.id);
   const myCompletedTasks = myTasks.filter((t) => t.status === 'done');
@@ -136,29 +141,37 @@ export function MyDayPage() {
       {/* 2. Top Metric Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Card 1: Attendance */}
-        <div className="desktop-panel rounded-lg p-3 flex flex-col justify-between">
+        <div className="desktop-panel rounded-lg p-3 flex flex-col justify-between space-y-1">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
             <span>ATTENDANCE</span>
-            <Clock className="h-3.5 w-3.5 text-blue-400" />
+            <div className="flex items-center gap-1">
+              {todayAttendance && todayAttendance.overtime_hours && todayAttendance.overtime_hours > 0 ? (
+                <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                  +{todayAttendance.overtime_hours}h OT
+                </span>
+              ) : null}
+              <Clock className="h-3.5 w-3.5 text-blue-400" />
+            </div>
           </div>
-          <div className="my-2 flex items-baseline justify-between">
+          <div className="my-1 flex items-baseline justify-between">
             <span className="text-2xl font-bold font-mono text-white">
               {todayAttendance?.clock_in
                 ? formatWorkingDuration(todayAttendance.clock_in, todayAttendance.clock_out)
                 : '0h 0m'}
             </span>
-            <span
-              className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
+            <button
+              onClick={handlePunchToggle}
+              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border transition-colors ${
                 isClockedIn
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                  ? 'bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white border-rose-600/30'
+                  : 'bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border-emerald-600/30'
               }`}
             >
-              {isClockedIn ? 'ACTIVE' : 'IDLE'}
-            </span>
+              {isClockedIn ? 'Punch Out' : 'Punch In'}
+            </button>
           </div>
-          <div className="text-[10px] text-slate-400 flex justify-between pt-1 border-t border-[#1a1f2b]">
-            <span>Mode: {todayAttendance?.work_mode ? todayAttendance.work_mode.toUpperCase() : 'OFFICE'}</span>
+          <div className="text-[10px] text-slate-400 flex justify-between pt-1 border-t border-[#1a1f2b] font-mono">
+            <span>Shift: {attendancePolicy.office_start_time} - {attendancePolicy.office_end_time}</span>
             <span>In: {todayAttendance?.clock_in ? formatTime(todayAttendance.clock_in) : '--:--'}</span>
           </div>
         </div>

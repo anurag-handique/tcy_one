@@ -11,6 +11,7 @@ import {
   Users2,
   BarChart3,
   Settings,
+  GitFork,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
@@ -27,7 +28,7 @@ export function Sidebar() {
     : 0;
 
   const myPendingTasksCount = tasks.filter(
-    (t) => t.assignee_id === currentUser.id && t.status !== 'done'
+    (t) => t.assignee_id === currentUser?.id && t.status !== 'done'
   ).length;
 
   const navGroups = [
@@ -52,6 +53,7 @@ export function Sidebar() {
       group: 'ORGANIZATION',
       items: [
         { to: '/team', label: 'Team Directory', icon: Users2, badge: null },
+        { to: '/organization', label: 'Departments & Roles', icon: GitFork, badge: null },
         { to: '/reports', label: 'Reports & Analytics', icon: BarChart3, badge: null },
         { to: '/settings', label: 'System Settings', icon: Settings, badge: null },
       ],
@@ -83,16 +85,16 @@ export function Sidebar() {
                   title={item.label}
                   className={({ isActive }) =>
                     cn(
-                      'group relative flex h-9 w-9 mx-auto items-center justify-center rounded transition-all duration-150',
+                      'group relative flex h-8 w-8 mx-auto items-center justify-center rounded-none transition-all duration-150 border',
                       isActive
-                        ? 'bg-[#1c2230] text-blue-400 border border-[#2b3548] shadow-sm'
-                        : 'text-slate-400 hover:bg-[#141822] hover:text-slate-200'
+                        ? 'bg-[#1c2230] text-blue-400 border-[#2b3548] shadow-sm'
+                        : 'border-transparent text-slate-400 hover:bg-[#141822] hover:text-slate-200'
                     )
                   }
                 >
                   <Icon className="h-4 w-4 shrink-0 transition-colors" />
                   {item.badge && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[9px] font-mono font-bold text-white shadow-sm">
+                    <span className="absolute -top-1 -right-1 flex h-3.5 min-w-3.5 px-0.5 items-center justify-center rounded-none bg-blue-600 text-[8px] font-mono font-bold text-white shadow-sm border border-blue-400/40">
                       {item.badge}
                     </span>
                   )}

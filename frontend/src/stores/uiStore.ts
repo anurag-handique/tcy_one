@@ -10,6 +10,8 @@ interface UIState {
   activeTaskModalOpen: boolean;
   activeStandupModalOpen: boolean;
   activeMeetingModalOpen: boolean;
+  activePunchModalOpen: boolean;
+  punchModalMode: 'in' | 'out';
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
@@ -19,6 +21,7 @@ interface UIState {
   setTaskModalOpen: (open: boolean) => void;
   setStandupModalOpen: (open: boolean) => void;
   setMeetingModalOpen: (open: boolean) => void;
+  setPunchModalOpen: (open: boolean, mode?: 'in' | 'out') => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -32,6 +35,8 @@ export const useUIStore = create<UIState>()(
       activeTaskModalOpen: false,
       activeStandupModalOpen: false,
       activeMeetingModalOpen: false,
+      activePunchModalOpen: false,
+      punchModalMode: 'in',
 
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
@@ -42,6 +47,7 @@ export const useUIStore = create<UIState>()(
       setTaskModalOpen: (open) => set({ activeTaskModalOpen: open }),
       setStandupModalOpen: (open) => set({ activeStandupModalOpen: open }),
       setMeetingModalOpen: (open) => set({ activeMeetingModalOpen: open }),
+      setPunchModalOpen: (open, mode = 'in') => set({ activePunchModalOpen: open, punchModalMode: mode }),
     }),
     {
       name: 'tcy_ui_storage',

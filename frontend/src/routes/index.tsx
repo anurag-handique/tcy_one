@@ -9,6 +9,7 @@ import { ProjectsPage } from '@/features/projects/ProjectsPage';
 import { StandupsPage } from '@/features/standups/StandupsPage';
 import { MeetingsPage } from '@/features/meetings/MeetingsPage';
 import { TeamPage } from '@/features/employees/TeamPage';
+import { OrganizationPage } from '@/features/organization/OrganizationPage';
 import { ReportsPage } from '@/features/reports/ReportsPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 
@@ -24,6 +25,8 @@ export function AppRoutes() {
         <Route path="standup" element={<StandupsPage />} />
         <Route path="meetings" element={<MeetingsPage />} />
         <Route path="team" element={<TeamPage />} />
+        <Route path="organization" element={<OrganizationPage />} />
+        <Route path="departments" element={<Navigate to="/organization" replace />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

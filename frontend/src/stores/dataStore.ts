@@ -1,9 +1,12 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import {
   Profile,
   Department,
   Designation,
   Attendance,
+  AttendancePolicy,
+  AttendanceStatus,
   LeaveType,
   LeaveRequest,
   Project,
@@ -35,12 +38,35 @@ import {
   INITIAL_HOLIDAYS,
 } from '../lib/mockData';
 
+const DEFAULT_ATTENDANCE_POLICY: AttendancePolicy = {
+  office_start_time: '09:30',
+  max_punch_in_time: '10:30',
+  office_end_time: '18:30',
+  max_punch_out_time: '21:00',
+  standard_hours: 8.0,
+  allow_overtime: true,
+  strict_enforcement: false,
+  saturday_off_rule: '3rd_4th',
+  working_saturdays_override: [],
+};
+
+const getInitialAttendancePolicy = (): AttendancePolicy => {
+  try {
+    const saved = localStorage.getItem('tcy_attendance_policy');
+    if (saved) {
+      return { ...DEFAULT_ATTENDANCE_POLICY, ...JSON.parse(saved) };
+    }
+  } catch (e) {}
+  return DEFAULT_ATTENDANCE_POLICY;
+};
+
 interface DataState {
   profiles: Profile[];
   departments: Department[];
   designations: Designation[];
   attendance: Attendance[];
   attendanceCorrections: AttendanceCorrection[];
+  attendancePolicy: AttendancePolicy;
   leaveTypes: LeaveType[];
   leaveRequests: LeaveRequest[];
   projects: Project[];
@@ -55,9 +81,11 @@ interface DataState {
   // Supabase sync
   fetchSupabaseData: () => Promise<void>;
 
-  // Attendance Actions
-  clockIn: (employeeId: string, workMode: WorkMode, notes?: string) => Attendance;
-  clockOut: (employeeId: string) => Attendance | null;
+  // Attendance Actions & Policy
+  updateAttendancePolicy: (policy: Partial<AttendancePolicy>) => void;
+  toggleWorkingSaturdayOverride: (dateStr: string) => void;
+  clockIn: (employeeId: string, workMode: WorkMode, notes?: string, location?: string) => Attendance;
+  clockOut: (employeeId: string, location?: string, notes?: string) => Attendance | null;
   requestAttendanceCorrection: (correction: Omit<AttendanceCorrection, 'id' | 'created_at' | 'updated_at' | 'status'>) => void;
   reviewAttendanceCorrection: (id: string, status: 'approved' | 'rejected', reviewerId: string, note?: string) => void;
 
@@ -84,8 +112,13 @@ interface DataState {
   createProject: (project: Omit<Project, 'id' | 'created_at' | 'updated_at'>) => Project;
   updateProject: (id: string, updates: Partial<Project>) => void;
 
-  // Department Actions
+  // Department & Designation Actions
   addDepartment: (name: string, description?: string) => Promise<Department | null>;
+  updateDepartment: (id: string, updates: Partial<Department>) => Promise<boolean>;
+  deleteDepartment: (id: string) => Promise<boolean>;
+  addDesignation: (title: string, level: string, departmentId?: string) => Promise<Designation | null>;
+  updateDesignation: (id: string, updates: Partial<Designation>) => Promise<boolean>;
+  deleteDesignation: (id: string) => Promise<boolean>;
 
   // Employee Actions
   addProfile: (profile: Omit<Profile, 'id' | 'created_at' | 'updated_at'>) => Profile;
@@ -95,10 +128,12 @@ interface DataState {
     fullName: string;
     role: UserRole;
     departmentName?: string;
+    designationTitle?: string;
     phone?: string;
     workLocation?: string;
   }) => Promise<{ success: boolean; error?: string }>;
-  updateProfileData: (id: string, updates: Partial<Profile>) => void;
+  updateProfileData: (id: string, updates: Partial<Profile>) => Promise<boolean>;
+  deleteProfile: (id: string) => Promise<boolean>;
 
   // Notifications
   addNotification: (notif: Omit<NotificationItem, 'id' | 'created_at' | 'is_read'>) => void;
@@ -109,24 +144,27 @@ interface DataState {
   resetToDefaultData: () => void;
 }
 
-export const useDataStore = create<DataState>()((set, get) => ({
-  profiles: INITIAL_PROFILES,
-  departments: INITIAL_DEPARTMENTS,
-  designations: INITIAL_DESIGNATIONS,
-  attendance: INITIAL_ATTENDANCE,
-  attendanceCorrections: [],
-  leaveTypes: INITIAL_LEAVE_TYPES,
-  leaveRequests: INITIAL_LEAVE_REQUESTS,
-  projects: INITIAL_PROJECTS,
-  tasks: INITIAL_TASKS,
-  standups: INITIAL_STANDUPS,
-  standupResponses: INITIAL_STANDUP_RESPONSES,
-  meetings: INITIAL_MEETINGS,
-  notifications: INITIAL_NOTIFICATIONS,
-  holidays: INITIAL_HOLIDAYS,
-  isLoadingFromSupabase: false,
+export const useDataStore = create<DataState>()(
+  persist(
+    (set, get) => ({
+      profiles: INITIAL_PROFILES,
+      departments: INITIAL_DEPARTMENTS,
+      designations: INITIAL_DESIGNATIONS,
+      attendance: INITIAL_ATTENDANCE,
+      attendanceCorrections: [],
+      attendancePolicy: getInitialAttendancePolicy(),
+      leaveTypes: INITIAL_LEAVE_TYPES,
+      leaveRequests: INITIAL_LEAVE_REQUESTS,
+      projects: INITIAL_PROJECTS,
+      tasks: INITIAL_TASKS,
+      standups: INITIAL_STANDUPS,
+      standupResponses: INITIAL_STANDUP_RESPONSES,
+      meetings: INITIAL_MEETINGS,
+      notifications: INITIAL_NOTIFICATIONS,
+      holidays: INITIAL_HOLIDAYS,
+      isLoadingFromSupabase: false,
 
-      // Fetch live data directly from Supabase tables
+      // Fetch live data directly from Supabase tables without erasing offline/local punch state
       fetchSupabaseData: async () => {
         if (!isSupabaseConfigured || !supabase) return;
         set({ isLoadingFromSupabase: true });
@@ -161,12 +199,41 @@ export const useDataStore = create<DataState>()((set, get) => ({
             supabase.from('holidays').select('*').order('holiday_date', { ascending: true }),
           ]);
 
+          const currentAttendance = get().attendance || [];
+          const remoteAttendance = attendanceData || [];
+          const mergedAttendance =
+            remoteAttendance.length > 0
+              ? [
+                  ...remoteAttendance,
+                  ...currentAttendance.filter(
+                    (ca) =>
+                      !remoteAttendance.some(
+                        (ra) => ra.id === ca.id || (ra.employee_id === ca.employee_id && ra.date === ca.date)
+                      )
+                  ),
+                ]
+              : currentAttendance;
+
+          const activeDesignations = desigData || [];
+
+          const rawProfiles = profilesData || [];
+
+          const enrichedProfiles = rawProfiles.map((p) => {
+            const matchedDesig = activeDesignations.find(
+              (d) => d.id === p.designation_id || (p.designation && d.id === p.designation.id)
+            );
+            return {
+              ...p,
+              designation_title: matchedDesig?.title || p.designation_title || 'Software Engineer',
+            };
+          });
+
           set({
-            profiles: profilesData && profilesData.length > 0 ? profilesData : (get().profiles.length > 0 ? get().profiles : INITIAL_PROFILES),
+            profiles: enrichedProfiles,
             departments: deptData || [],
-            designations: desigData || [],
+            designations: activeDesignations,
             attendance: attendanceData || [],
-            leaveTypes: leaveTypesData && leaveTypesData.length > 0 ? leaveTypesData : INITIAL_LEAVE_TYPES,
+            leaveTypes: leaveTypesData || [],
             leaveRequests: leaveReqsData || [],
             projects: projectsData || [],
             tasks: tasksData || [],
@@ -183,72 +250,179 @@ export const useDataStore = create<DataState>()((set, get) => ({
         }
       },
 
-      // Clock In
-      clockIn: (employeeId, workMode, notes) => {
-        const today = new Date().toISOString().split('T')[0];
-        const newRecord: Attendance = {
-          id: 'att-' + Date.now(),
-          employee_id: employeeId,
-          date: today,
-          clock_in: new Date().toISOString(),
-          clock_out: null,
-          total_hours: 0,
-          status: 'present',
-          work_mode: workMode,
-          notes: notes || 'Clocked in from Desktop',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
+  // Attendance Policy Management
+  updateAttendancePolicy: (updates: Partial<AttendancePolicy>) => {
+    const current = get().attendancePolicy;
+    const updated = { ...current, ...updates };
+    try {
+      localStorage.setItem('tcy_attendance_policy', JSON.stringify(updated));
+    } catch (e) {}
+    set({ attendancePolicy: updated });
+  },
 
-        set((state) => ({
-          attendance: [newRecord, ...state.attendance.filter((a) => !(a.employee_id === employeeId && a.date === today))],
-        }));
+  toggleWorkingSaturdayOverride: (dateStr: string) => {
+    const current = get().attendancePolicy;
+    const currentOverrides = current.working_saturdays_override || [];
+    const updatedOverrides = currentOverrides.includes(dateStr)
+      ? currentOverrides.filter((d) => d !== dateStr)
+      : [...currentOverrides, dateStr];
 
-        if (supabase && isSupabaseConfigured) {
-          supabase.from('attendance').upsert({
-            employee_id: employeeId,
-            date: today,
-            clock_in: newRecord.clock_in,
-            status: 'present',
-            work_mode: workMode,
-            notes: newRecord.notes,
-          }).then();
+    const updated: AttendancePolicy = {
+      ...current,
+      working_saturdays_override: updatedOverrides,
+    };
+
+    try {
+      localStorage.setItem('tcy_attendance_policy', JSON.stringify(updated));
+    } catch (e) {}
+    set({ attendancePolicy: updated });
+  },
+
+  // Clock In
+  clockIn: (employeeId: string, workMode: WorkMode, notes?: string, location?: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const currentHours = now.getHours();
+    const currentMins = now.getMinutes();
+    const currentTimeNum = currentHours * 60 + currentMins;
+
+    const policy = get().attendancePolicy;
+    const [startH, startM] = (policy.office_start_time || '09:30').split(':').map(Number);
+    const startTimeNum = (startH || 9) * 60 + (startM || 30);
+
+    const [maxInH, maxInM] = (policy.max_punch_in_time || '10:30').split(':').map(Number);
+    const maxInTimeNum = (maxInH || 10) * 60 + (maxInM || 30);
+
+    let status: AttendanceStatus = 'present';
+    let defaultNote = location ? `Clocked in at ${location}` : 'Clocked in from Desktop';
+
+    if (currentTimeNum > startTimeNum && currentTimeNum <= maxInTimeNum) {
+      status = 'late';
+      defaultNote = `Late punch-in (Office start: ${policy.office_start_time})${location ? ` • ${location}` : ''}`;
+    } else if (currentTimeNum > maxInTimeNum) {
+      status = policy.strict_enforcement ? 'absent' : 'half_day';
+      defaultNote = `Past max punch threshold (${policy.max_punch_in_time}) — marked ${status}${location ? ` • ${location}` : ''}`;
+    }
+
+    const newRecord: Attendance = {
+      id: 'att-' + Date.now(),
+      employee_id: employeeId,
+      date: today,
+      clock_in: now.toISOString(),
+      clock_out: null,
+      total_hours: 0,
+      overtime_hours: 0,
+      status: status,
+      work_mode: workMode,
+      punch_in_location: location || 'System Verified Location',
+      notes: notes || defaultNote,
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    };
+
+    set((state) => ({
+      attendance: [newRecord, ...state.attendance.filter((a) => !(a.employee_id === employeeId && a.date === today))],
+    }));
+
+    if (supabase && isSupabaseConfigured) {
+      (async () => {
+        try {
+          const profile = get().profiles.find((p) => p.id === employeeId);
+          if (profile) {
+            await supabase.from('profiles').upsert(
+              {
+                id: profile.id,
+                email: profile.email,
+                full_name: profile.full_name,
+                role: profile.role,
+                employment_status: profile.employment_status || 'active',
+                joining_date: profile.joining_date || today,
+              },
+              { onConflict: 'id' }
+            );
+          }
+
+          await supabase.from('attendance').upsert(
+            {
+              employee_id: employeeId,
+              date: today,
+              clock_in: newRecord.clock_in,
+              status: status,
+              work_mode: workMode,
+              punch_in_location: newRecord.punch_in_location,
+              notes: newRecord.notes,
+            },
+            { onConflict: 'employee_id,date' }
+          );
+        } catch (err) {
+          console.warn('Supabase attendance clock-in sync warning:', err);
         }
+      })();
+    }
 
-        return newRecord;
-      },
+    return newRecord;
+  },
 
-      // Clock Out
-      clockOut: (employeeId) => {
-        const today = new Date().toISOString().split('T')[0];
-        const current = get().attendance.find((a) => a.employee_id === employeeId && a.date === today);
-        if (!current) return null;
+  // Clock Out
+  clockOut: (employeeId: string, location?: string, notes?: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    const current = get().attendance.find((a) => a.employee_id === employeeId && a.date === today);
+    if (!current) return null;
 
-        const clockOutTime = new Date().toISOString();
-        const start = new Date(current.clock_in).getTime();
-        const end = new Date(clockOutTime).getTime();
-        const hours = Math.round(((end - start) / (1000 * 60 * 60)) * 100) / 100;
+    const now = new Date();
+    const clockOutTime = now.toISOString();
+    const start = new Date(current.clock_in).getTime();
+    const end = now.getTime();
+    const hours = Math.round(((end - start) / (1000 * 60 * 60)) * 100) / 100;
 
-        const updated: Attendance = {
-          ...current,
-          clock_out: clockOutTime,
-          total_hours: hours,
-          updated_at: clockOutTime,
-        };
+    const policy = get().attendancePolicy;
+    let overtime = 0;
+    if (policy.allow_overtime && hours > policy.standard_hours) {
+      overtime = Math.round((hours - policy.standard_hours) * 100) / 100;
+    }
 
-        set((state) => ({
-          attendance: state.attendance.map((a) => (a.id === current.id ? updated : a)),
-        }));
+    const updatedNotes = notes
+      ? notes
+      : location
+      ? `${current.notes || ''} | Out at ${location}`
+      : current.notes;
 
-        if (supabase && isSupabaseConfigured) {
-          supabase.from('attendance').update({
-            clock_out: clockOutTime,
-            total_hours: hours,
-          }).eq('employee_id', employeeId).eq('date', today).then();
+    const updated: Attendance = {
+      ...current,
+      clock_out: clockOutTime,
+      total_hours: hours,
+      overtime_hours: overtime,
+      punch_out_location: location || 'System Verified Location',
+      notes: updatedNotes,
+      updated_at: clockOutTime,
+    };
+
+    set((state) => ({
+      attendance: state.attendance.map((a) => (a.id === current.id ? updated : a)),
+    }));
+
+    if (supabase && isSupabaseConfigured) {
+      (async () => {
+        try {
+          await supabase
+            .from('attendance')
+            .update({
+              clock_out: clockOutTime,
+              total_hours: hours,
+              overtime_hours: overtime,
+              punch_out_location: updated.punch_out_location,
+              notes: updatedNotes,
+            })
+            .eq('employee_id', employeeId)
+            .eq('date', today);
+        } catch (err) {
+          console.warn('Supabase attendance clock-out sync warning:', err);
         }
+      })();
+    }
 
-        return updated;
-      },
+    return updated;
+  },
 
       // Attendance Correction
       requestAttendanceCorrection: (correction) => {
@@ -603,33 +777,188 @@ export const useDataStore = create<DataState>()((set, get) => ({
         const cleanName = name.trim();
         if (!cleanName) return null;
         const code = cleanName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || 'DEPT';
-        const newDept: Department = {
+        const generatedCode = `${code}-${Math.floor(Math.random() * 900 + 100)}`;
+        
+        const tempDept: Department = {
           id: 'dept-' + Date.now(),
           name: cleanName,
-          code: code + '-' + Math.floor(Math.random() * 900 + 100),
+          code: generatedCode,
           description: description || '',
           manager_id: undefined,
           created_at: new Date().toISOString(),
         };
 
+        // Update local state immediately for instant feedback
         set((state) => ({
-          departments: [...state.departments.filter(d => d.name.toLowerCase() !== cleanName.toLowerCase()), newDept],
+          departments: [
+            ...state.departments.filter((d) => d.name.toLowerCase() !== cleanName.toLowerCase()),
+            tempDept,
+          ],
         }));
 
         if (supabase && isSupabaseConfigured) {
-          const { data, error } = await supabase.from('departments').upsert({
-            name: cleanName,
-            code: newDept.code,
-            description: newDept.description,
-          }).select().single();
-          if (data && !error) {
-            set((state) => ({
-              departments: [...state.departments.filter(d => d.id !== newDept.id && d.name !== cleanName), data as Department],
-            }));
-            return data as Department;
+          try {
+            // Check if department already exists in Supabase
+            const { data: existingDept } = await supabase
+              .from('departments')
+              .select('*')
+              .ilike('name', cleanName)
+              .maybeSingle();
+
+            if (existingDept) {
+              set((state) => ({
+                departments: [
+                  ...state.departments.filter((d) => d.id !== tempDept.id && d.id !== existingDept.id),
+                  existingDept as Department,
+                ],
+              }));
+              return existingDept as Department;
+            }
+
+            // Insert new department record
+            const { data: insertedDept, error } = await supabase
+              .from('departments')
+              .insert({
+                name: cleanName,
+                code: generatedCode,
+                description: description || '',
+              })
+              .select()
+              .single();
+
+            if (insertedDept && !error) {
+              set((state) => ({
+                departments: [
+                  ...state.departments.filter((d) => d.id !== tempDept.id && d.id !== insertedDept.id),
+                  insertedDept as Department,
+                ],
+              }));
+              return insertedDept as Department;
+            } else if (error) {
+              console.warn('Supabase department insert warning:', error.message);
+            }
+          } catch (err) {
+            console.warn('Supabase department operation exception:', err);
           }
         }
-        return newDept;
+        return tempDept;
+      },
+
+      updateDepartment: async (id: string, updates: Partial<Department>) => {
+        set((state) => ({
+          departments: state.departments.map((d) => (d.id === id ? { ...d, ...updates } : d)),
+        }));
+        if (supabase && isSupabaseConfigured) {
+          try {
+            await supabase.from('departments').update(updates).eq('id', id);
+          } catch (err) {
+            console.warn('Supabase department update warning:', err);
+          }
+        }
+        return true;
+      },
+
+      deleteDepartment: async (id: string) => {
+        set((state) => ({ departments: state.departments.filter((d) => d.id !== id) }));
+        if (supabase && isSupabaseConfigured) {
+          try {
+            await supabase.from('departments').delete().eq('id', id);
+          } catch (err) {
+            console.warn('Supabase department delete warning:', err);
+          }
+        }
+        return true;
+      },
+
+      addDesignation: async (title: string, level: string, departmentId?: string) => {
+        const cleanTitle = title.trim();
+        if (!cleanTitle) return null;
+
+        const tempDesig: Designation = {
+          id: 'desig-' + Date.now(),
+          title: cleanTitle,
+          level: level || 'Mid',
+          department_id: departmentId,
+          created_at: new Date().toISOString(),
+        };
+
+        set((state) => ({
+          designations: [
+            ...state.designations.filter((d) => d.title.toLowerCase() !== cleanTitle.toLowerCase()),
+            tempDesig,
+          ],
+        }));
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            const { data: existing } = await supabase
+              .from('designations')
+              .select('*')
+              .ilike('title', cleanTitle)
+              .maybeSingle();
+
+            if (existing) {
+              set((state) => ({
+                designations: [
+                  ...state.designations.filter((d) => d.id !== tempDesig.id && d.id !== existing.id),
+                  existing as Designation,
+                ],
+              }));
+              return existing as Designation;
+            }
+
+            const { data: inserted, error } = await supabase
+              .from('designations')
+              .insert({
+                title: cleanTitle,
+                level: level || 'Mid',
+                department_id: departmentId || null,
+              })
+              .select()
+              .single();
+
+            if (inserted && !error) {
+              set((state) => ({
+                designations: [
+                  ...state.designations.filter((d) => d.id !== tempDesig.id && d.id !== inserted.id),
+                  inserted as Designation,
+                ],
+              }));
+              return inserted as Designation;
+            } else if (error) {
+              console.warn('Supabase designation insert warning:', error.message);
+            }
+          } catch (err) {
+            console.warn('Supabase designation operation exception:', err);
+          }
+        }
+        return tempDesig;
+      },
+
+      updateDesignation: async (id: string, updates: Partial<Designation>) => {
+        set((state) => ({
+          designations: state.designations.map((d) => (d.id === id ? { ...d, ...updates } : d)),
+        }));
+        if (supabase && isSupabaseConfigured) {
+          try {
+            await supabase.from('designations').update(updates).eq('id', id);
+          } catch (err) {
+            console.warn('Supabase designation update warning:', err);
+          }
+        }
+        return true;
+      },
+
+      deleteDesignation: async (id: string) => {
+        set((state) => ({ designations: state.designations.filter((d) => d.id !== id) }));
+        if (supabase && isSupabaseConfigured) {
+          try {
+            await supabase.from('designations').delete().eq('id', id);
+          } catch (err) {
+            console.warn('Supabase designation delete warning:', err);
+          }
+        }
+        return true;
       },
 
       // Employees
@@ -669,20 +998,116 @@ export const useDataStore = create<DataState>()((set, get) => ({
 
         if (supabase && isSupabaseConfigured) {
           try {
+            // 1. Try provisioning via Supabase RPC function (create_employee_account)
             const { data, error } = await supabase.rpc('create_employee_account', {
               p_email: payload.email.trim(),
               p_password: payload.password.trim(),
               p_full_name: payload.fullName.trim(),
               p_role: payload.role,
               p_department_name: payload.departmentName?.trim() || null,
+              p_designation_title: payload.designationTitle?.trim() || 'Software Engineer',
               p_phone: payload.phone?.trim() || null,
               p_work_location: payload.workLocation?.trim() || 'Office',
             });
 
-            if (error) {
-              console.warn('RPC create_employee_account error:', error.message);
-              return { success: false, error: error.message };
+            if (!error) {
+              await get().fetchSupabaseData();
+              return { success: true };
             }
+
+            console.warn('RPC create_employee_account error, attempting direct GoTrue signUp:', error.message);
+            
+            // 2. Direct GoTrue Auth registration + Profiles upsert fallback
+            let deptId: string | undefined = undefined;
+
+            if (payload.departmentName && payload.departmentName.trim()) {
+              const dName = payload.departmentName.trim();
+              const existingDept = get().departments.find(
+                (d) => d.name.toLowerCase() === dName.toLowerCase()
+              );
+              if (existingDept) {
+                deptId = existingDept.id;
+              } else {
+                const newDept = await get().addDepartment(dName, `${dName} Department`);
+                deptId = newDept?.id;
+              }
+            }
+
+            // Find or create designation in public.designations
+            let desigId: string | undefined = undefined;
+            if (payload.designationTitle && payload.designationTitle.trim()) {
+              const dTitle = payload.designationTitle.trim();
+              const existingDesig = get().designations.find(
+                (d) => d.title.toLowerCase() === dTitle.toLowerCase()
+              );
+              if (existingDesig) {
+                desigId = existingDesig.id;
+              } else {
+                try {
+                  const { data: newDesig } = await supabase
+                    .from('designations')
+                    .insert({
+                      title: dTitle,
+                      department_id: deptId || null,
+                      level: 'Mid',
+                    })
+                    .select()
+                    .single();
+                  if (newDesig) desigId = newDesig.id;
+                } catch (e) {}
+              }
+            }
+
+            // Provision user in Supabase auth.users so password verification works strictly
+            let authUserId: string | null = null;
+            try {
+              const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                email: payload.email.trim().toLowerCase(),
+                password: payload.password.trim(),
+                options: {
+                  data: {
+                    full_name: payload.fullName.trim(),
+                    role: payload.role,
+                    designation_title: payload.designationTitle?.trim() || 'Software Engineer',
+                    work_location: payload.workLocation?.trim() || 'Office',
+                  },
+                },
+              });
+
+              if (signUpData?.user?.id) {
+                authUserId = signUpData.user.id;
+              } else if (signUpError && !signUpError.message?.includes('already registered')) {
+                console.warn('Supabase auth signUp warning:', signUpError.message);
+              }
+            } catch (authErr) {
+              console.warn('Supabase auth registration warning:', authErr);
+            }
+
+            const newProfileId = authUserId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'prof-' + Date.now());
+            const today = new Date().toISOString().split('T')[0];
+
+            const { error: profError } = await supabase.from('profiles').upsert(
+              {
+                id: newProfileId,
+                user_id: authUserId || newProfileId,
+                email: payload.email.trim().toLowerCase(),
+                full_name: payload.fullName.trim(),
+                role: payload.role,
+                department_id: deptId || null,
+                designation_id: desigId || null,
+                phone: payload.phone?.trim() || null,
+                work_location: payload.workLocation?.trim() || 'Office',
+                employment_status: 'active',
+                joining_date: today,
+              },
+              { onConflict: 'email' }
+            );
+
+            if (profError) {
+              console.error('Direct profile upsert error:', profError);
+              return { success: false, error: profError.message };
+            }
+
             await get().fetchSupabaseData();
             return { success: true };
           } catch (err: any) {
@@ -695,6 +1120,7 @@ export const useDataStore = create<DataState>()((set, get) => ({
             full_name: payload.fullName,
             email: payload.email,
             role: payload.role,
+            designation_title: payload.designationTitle?.trim() || 'Software Engineer',
             department_id: undefined,
             phone: payload.phone || '',
             work_location: payload.workLocation || 'Office',
@@ -705,14 +1131,36 @@ export const useDataStore = create<DataState>()((set, get) => ({
         }
       },
 
-      updateProfileData: (id, updates) => {
+      updateProfileData: async (id, updates) => {
         set((state) => ({
           profiles: state.profiles.map((p) => (p.id === id ? { ...p, ...updates, updated_at: new Date().toISOString() } : p)),
         }));
 
         if (supabase && isSupabaseConfigured) {
-          supabase.from('profiles').update(updates).eq('id', id).then();
+          try {
+            await supabase.from('profiles').update(updates).eq('id', id);
+          } catch (err) {
+            console.warn('Supabase update profile warning:', err);
+            return false;
+          }
         }
+        return true;
+      },
+
+      deleteProfile: async (id) => {
+        set((state) => ({
+          profiles: state.profiles.filter((p) => p.id !== id),
+        }));
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            await supabase.from('profiles').delete().eq('id', id);
+          } catch (err) {
+            console.warn('Supabase delete profile warning:', err);
+            return false;
+          }
+        }
+        return true;
       },
 
       // Notifications
@@ -779,5 +1227,9 @@ export const useDataStore = create<DataState>()((set, get) => ({
           holidays: INITIAL_HOLIDAYS,
         });
       },
-    })
+    }),
+    {
+      name: 'tcy_data_store',
+    }
+  )
 );

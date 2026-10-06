@@ -62,8 +62,11 @@ create table if not exists public.attendance (
     clock_in timestamptz not null default now(),
     clock_out timestamptz,
     total_hours numeric(5,2) default 0,
+    overtime_hours numeric(5,2) default 0,
     status text not null default 'present' check (status in ('present', 'late', 'half_day', 'absent', 'on_leave')),
     work_mode text not null default 'office' check (work_mode in ('office', 'remote', 'hybrid')),
+    punch_in_location text,
+    punch_out_location text,
     notes text,
     ip_address text,
     created_at timestamptz default now() not null,
@@ -427,11 +430,18 @@ create policy "Update notifications"
     to authenticated
     using (employee_id = public.current_profile_id());
 
--- HOLIDAYS & DEPARTMENTS & DESIGNATIONS & LEAVE TYPES READ ACCESS
+-- HOLIDAYS & DEPARTMENTS & DESIGNATIONS & LEAVE TYPES ACCESS
 create policy "View holidays" on public.holidays for select to authenticated using (true);
+create policy "Manage holidays" on public.holidays for all to authenticated using (public.is_admin());
+
 create policy "View departments" on public.departments for select to authenticated using (true);
+create policy "Manage departments" on public.departments for all to authenticated using (true);
+
 create policy "View designations" on public.designations for select to authenticated using (true);
+create policy "Manage designations" on public.designations for all to authenticated using (true);
+
 create policy "View leave types" on public.leave_types for select to authenticated using (true);
+create policy "Manage leave types" on public.leave_types for all to authenticated using (public.is_admin());
 
 -- Functions and Triggers for updated_at
 create or replace function public.handle_updated_at()

@@ -1,7 +1,15 @@
 -- =====================================================================
 -- TCY One — Employee Account Provisioning & Department Creation Function
 -- Allows Super Admin to onboard employees with password and custom department
+-- Run this in Supabase SQL Editor (Dashboard -> SQL Editor -> New query)
 -- =====================================================================
+
+create extension if not exists pgcrypto with schema extensions;
+create extension if not exists "uuid-ossp";
+
+-- 0. Drop any existing overloaded signatures to avoid ambiguity (Error 42725)
+drop function if exists public.create_employee_account(text, text, text, text, text, text, text);
+drop function if exists public.create_employee_account(text, text, text, text, text, text, text, text);
 
 create or replace function public.create_employee_account(
   p_email text,
@@ -9,6 +17,7 @@ create or replace function public.create_employee_account(
   p_full_name text,
   p_role text default 'employee',
   p_department_name text default null,
+  p_designation_title text default 'Software Engineer',
   p_phone text default null,
   p_work_location text default 'Office'
 )
@@ -21,6 +30,7 @@ declare
   v_user_id uuid;
   v_dept_id uuid;
   v_dept_code text;
+  v_desig_id uuid;
 begin
   -- 1. Input Validation
   if p_email is null or trim(p_email) = '' then
@@ -62,14 +72,34 @@ begin
     end if;
   end if;
 
-  -- 3. Check if user already exists in auth.users
+  -- 3. Handle Designation: Find or create in public.designations
+  if p_designation_title is not null and trim(p_designation_title) <> '' then
+    select id into v_desig_id 
+    from public.designations 
+    where lower(title) = lower(trim(p_designation_title))
+    limit 1;
+
+    if v_desig_id is null then
+      insert into public.designations (id, title, department_id, level, created_at)
+      values (
+        gen_random_uuid(),
+        trim(p_designation_title),
+        v_dept_id,
+        'Mid',
+        now()
+      )
+      returning id into v_desig_id;
+    end if;
+  end if;
+
+  -- 4. Check if user already exists in auth.users
   select id into v_user_id from auth.users where lower(email) = lower(trim(p_email));
 
   if v_user_id is not null then
     -- Update existing user credentials & metadata
     update auth.users
     set encrypted_password = extensions.crypt(p_password, extensions.gen_salt('bf')),
-        raw_user_meta_data = jsonb_build_object('full_name', p_full_name, 'role', p_role),
+        raw_user_meta_data = jsonb_build_object('full_name', p_full_name, 'role', p_role, 'designation_title', coalesce(p_designation_title, 'Software Engineer')),
         updated_at = now()
     where id = v_user_id;
   else
@@ -104,7 +134,7 @@ begin
       now(),
       null,
       '{"provider":"email","providers":["email"]}'::jsonb,
-      jsonb_build_object('full_name', p_full_name, 'role', p_role),
+      jsonb_build_object('full_name', p_full_name, 'role', p_role, 'designation_title', coalesce(p_designation_title, 'Software Engineer')),
       now(),
       now(),
       '',
@@ -135,7 +165,7 @@ begin
     );
   end if;
 
-  -- 4. Upsert into public.profiles
+  -- 5. Upsert into public.profiles
   insert into public.profiles (
     id,
     user_id,
@@ -143,6 +173,7 @@ begin
     full_name,
     role,
     department_id,
+    designation_id,
     phone,
     work_location,
     employment_status,
@@ -156,6 +187,7 @@ begin
     p_full_name,
     p_role,
     v_dept_id,
+    v_desig_id,
     p_phone,
     p_work_location,
     'active',
@@ -168,6 +200,7 @@ begin
       full_name = p_full_name,
       role = p_role,
       department_id = coalesce(v_dept_id, public.profiles.department_id),
+      designation_id = coalesce(v_desig_id, public.profiles.designation_id),
       phone = coalesce(p_phone, public.profiles.phone),
       work_location = coalesce(p_work_location, public.profiles.work_location),
       updated_at = now();
@@ -176,11 +209,16 @@ begin
     'success', true,
     'user_id', v_user_id,
     'email', lower(trim(p_email)),
-    'department_id', v_dept_id
+    'department_id', v_dept_id,
+    'designation_id', v_desig_id
   );
 end;
 $$;
 
--- Grant execution permission to authenticated users (and anon for bootstrapping if needed)
-grant execute on function public.create_employee_account to authenticated;
-grant execute on function public.create_employee_account to anon;
+-- Grant execution permission to authenticated and anon users (specifying exact parameter types)
+grant execute on function public.create_employee_account(text, text, text, text, text, text, text, text) to authenticated;
+grant execute on function public.create_employee_account(text, text, text, text, text, text, text, text) to anon;
+
+-- Refresh Supabase schema cache
+notify pgrst, 'reload schema';
+

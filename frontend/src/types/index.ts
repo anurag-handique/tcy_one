@@ -39,6 +39,7 @@ export interface Profile {
   department?: Department;
   designation_id?: string;
   designation?: Designation;
+  designation_title?: string;
   manager_id?: string;
   manager?: Profile;
   role: UserRole;
@@ -59,12 +60,27 @@ export interface Attendance {
   clock_in: string;
   clock_out?: string | null;
   total_hours: number;
+  overtime_hours?: number;
   status: AttendanceStatus;
   work_mode: WorkMode;
   notes?: string;
+  punch_in_location?: string;
+  punch_out_location?: string;
   ip_address?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface AttendancePolicy {
+  office_start_time: string; // e.g. "09:30"
+  max_punch_in_time: string; // e.g. "10:30" (threshold after which marked as late or blocked/absent)
+  office_end_time: string; // e.g. "18:30"
+  max_punch_out_time: string; // e.g. "21:00"
+  standard_hours: number; // e.g. 8.0
+  allow_overtime: boolean; // toggle
+  strict_enforcement: boolean; // if true, punches after max_punch_in marked as absent
+  saturday_off_rule: '3rd_4th' | '2nd_4th' | 'all' | 'none'; // generally 3rd and 4th Saturdays are off
+  working_saturdays_override: string[]; // array of 'YYYY-MM-DD' dates enabled for urgent work
 }
 
 export interface AttendanceCorrection {

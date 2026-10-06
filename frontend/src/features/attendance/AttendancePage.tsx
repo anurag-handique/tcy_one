@@ -9,9 +9,11 @@ import {
   Laptop,
   Building,
   CheckCircle2,
+  MapPin,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
+import { useUIStore } from '@/stores/uiStore';
 import { Attendance, WorkMode } from '@/types';
 import { formatDate, formatTime, formatWorkingDuration, getStatusColor } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
@@ -21,9 +23,11 @@ import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { UserAvatar } from '@/components/ui/Avatar';
 import { toast } from 'sonner';
+import { GeoMapView } from './GeoMapView';
 
 export function AttendancePage() {
   const { currentUser, activeRole } = useAuthStore();
+  const { setPunchModalOpen } = useUIStore();
   const {
     attendance,
     clockIn,
@@ -32,13 +36,22 @@ export function AttendancePage() {
     requestAttendanceCorrection,
     reviewAttendanceCorrection,
     profiles,
+    attendancePolicy,
   } = useDataStore();
 
   const isManagerOrAdmin = activeRole === 'manager' || activeRole === 'admin' || activeRole === 'super_admin';
 
   const todayStr = new Date().toISOString().split('T')[0];
+  const matchesCurrentEmployee = (attEmployeeId: string) => {
+    return (
+      attEmployeeId === currentUser.id ||
+      (currentUser.user_id && attEmployeeId === currentUser.user_id) ||
+      (currentUser.email && attEmployeeId.toLowerCase() === currentUser.email.toLowerCase())
+    );
+  };
+
   const todayAttendance = attendance.find(
-    (a) => a.employee_id === currentUser.id && a.date === todayStr
+    (a) => matchesCurrentEmployee(a.employee_id) && a.date === todayStr
   );
   const isClockedIn = Boolean(todayAttendance && !todayAttendance.clock_out);
 
@@ -66,13 +79,7 @@ export function AttendancePage() {
   }, [todayAttendance]);
 
   const handlePunchToggle = () => {
-    if (isClockedIn) {
-      clockOut(currentUser.id);
-      toast.success('Punched out successfully');
-    } else {
-      clockIn(currentUser.id, selectedWorkMode, `Clocked in via Desktop (${selectedWorkMode})`);
-      toast.success('Punched in successfully');
-    }
+    setPunchModalOpen(true, isClockedIn ? 'out' : 'in');
   };
 
   const handleCorrectionSubmit = (e: React.FormEvent) => {
@@ -96,20 +103,29 @@ export function AttendancePage() {
     setCorrReason('');
   };
 
-  const myAttendanceHistory = attendance.filter((a) => a.employee_id === currentUser.id);
+  const myAttendanceHistory = attendance.filter((a) => matchesCurrentEmployee(a.employee_id));
   const totalMonthHours = myAttendanceHistory.reduce((acc, curr) => acc + (curr.total_hours || 0), 0);
-  const presentDaysCount = myAttendanceHistory.filter((a) => a.status === 'present').length;
+  const totalOvertimeHours = myAttendanceHistory.reduce((acc, curr) => acc + (curr.overtime_hours || 0), 0);
+  const presentDaysCount = myAttendanceHistory.filter((a) => a.status === 'present' || a.status === 'late').length;
 
   return (
     <div className="space-y-4">
-      {/* Header Toolbar */}
+      {/* Header Toolbar with Shift Policy Summary */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1b202c] pb-3">
         <div>
-          <h1 className="text-base font-bold text-white tracking-tight font-mono">
-            ATTENDANCE & TIMECARDS
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-base font-bold text-white tracking-tight font-mono">
+              ATTENDANCE & TIMECARDS
+            </h1>
+            <span className="font-mono text-[10px] text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded">
+              Shift: {attendancePolicy.office_start_time} - {attendancePolicy.office_end_time}
+            </span>
+            <span className="font-mono text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+              Max In: {attendancePolicy.max_punch_in_time}
+            </span>
+          </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Daily clock-in/out registers, monthly timesheets, and attendance regularizations.
+            Daily clock-in/out registers, official shifts ({attendancePolicy.standard_hours}h standard), overtime tracking, and regularizations.
           </p>
         </div>
 
@@ -133,13 +149,20 @@ export function AttendancePage() {
               <span className="text-[10px] font-mono uppercase text-slate-400">PUNCH TERMINAL</span>
               <div className="text-xs font-bold text-white">{formatDate(new Date(), 'EEEE, dd MMM yyyy')}</div>
             </div>
-            <span
-              className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
-                isClockedIn ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-slate-800 text-slate-400 border-slate-700'
-              }`}
-            >
-              {isClockedIn ? 'SESSION ACTIVE' : 'INACTIVE'}
-            </span>
+            <div className="flex items-center gap-1.5">
+              {todayAttendance && todayAttendance.overtime_hours && todayAttendance.overtime_hours > 0 ? (
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded border bg-purple-500/10 text-purple-400 border-purple-500/20">
+                  +{todayAttendance.overtime_hours}h OT
+                </span>
+              ) : null}
+              <span
+                className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
+                  isClockedIn ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-slate-800 text-slate-400 border-slate-700'
+                }`}
+              >
+                {isClockedIn ? 'SESSION ACTIVE' : 'INACTIVE'}
+              </span>
+            </div>
           </div>
 
           <div className="text-center py-2">
@@ -206,9 +229,9 @@ export function AttendancePage() {
             <span className="text-[10px] font-mono uppercase text-slate-400">PRESENT WORKING DAYS</span>
             <div className="my-1">
               <span className="text-2xl font-bold font-mono text-white">{presentDaysCount}</span>
-              <span className="text-xs text-slate-400 font-mono ml-1">/ 22 Days</span>
+              <span className="text-xs text-slate-400 font-mono ml-1">Days Logged</span>
             </div>
-            <span className="text-[10px] text-emerald-400 font-mono">98.5% Punctuality</span>
+            <span className="text-[10px] text-emerald-400 font-mono">Standard Attendance</span>
           </div>
 
           <div className="desktop-panel rounded-lg p-3 flex flex-col justify-between">
@@ -216,15 +239,15 @@ export function AttendancePage() {
             <div className="my-1">
               <span className="text-2xl font-bold font-mono text-white">{totalMonthHours.toFixed(1)}h</span>
             </div>
-            <span className="text-[10px] text-blue-400 font-mono">Avg 8.4h / day</span>
+            <span className="text-[10px] text-blue-400 font-mono">{totalOvertimeHours > 0 ? `+${totalOvertimeHours.toFixed(1)}h OT Included` : 'Standard Hours'}</span>
           </div>
 
           <div className="desktop-panel rounded-lg p-3 flex flex-col justify-between">
-            <span className="text-[10px] font-mono uppercase text-slate-400">STANDARD SHIFT</span>
+            <span className="text-[10px] font-mono uppercase text-slate-400">OVERTIME ACCUMULATED</span>
             <div className="my-1">
-              <span className="text-sm font-bold font-mono text-slate-200">09:30 AM - 06:30 PM</span>
+              <span className="text-2xl font-bold font-mono text-purple-400">{totalOvertimeHours.toFixed(1)}h</span>
             </div>
-            <span className="text-[10px] text-slate-400 font-mono">15m grace window</span>
+            <span className="text-[10px] text-purple-300 font-mono">Past {attendancePolicy.standard_hours}h/day shift</span>
           </div>
 
           <div className="desktop-panel rounded-lg p-3 flex flex-col justify-between">
@@ -245,6 +268,7 @@ export function AttendancePage() {
       <Tabs defaultValue="my-logs" className="space-y-3">
         <TabsList className="bg-[#0c0e15] border border-[#1b202c] h-8 p-0.5">
           <TabsTrigger value="my-logs" className="text-xs font-mono h-7">My Timesheet Log</TabsTrigger>
+          {isManagerOrAdmin && <TabsTrigger value="geo-map" className="text-xs font-mono h-7 flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-blue-400" /> Live Geo-Map Radar</TabsTrigger>}
           {isManagerOrAdmin && <TabsTrigger value="team-register" className="text-xs font-mono h-7">Live Squad Register</TabsTrigger>}
           {isManagerOrAdmin && <TabsTrigger value="corrections" className="text-xs font-mono h-7">Regularization Audits</TabsTrigger>}
         </TabsList>
@@ -259,7 +283,10 @@ export function AttendancePage() {
                   <th className="py-2 px-3">Clock In</th>
                   <th className="py-2 px-3">Clock Out</th>
                   <th className="py-2 px-3">Total Time</th>
+                  <th className="py-2 px-3">Overtime</th>
                   <th className="py-2 px-3">Work Mode</th>
+                  <th className="py-2 px-3">Punch In Location</th>
+                  <th className="py-2 px-3">Punch Out Location</th>
                   <th className="py-2 px-3">Status</th>
                   <th className="py-2 px-3">Log Notes</th>
                 </tr>
@@ -279,15 +306,30 @@ export function AttendancePage() {
                       <td className="py-2 px-3 font-mono font-bold text-white">
                         {rec.total_hours ? `${rec.total_hours}h` : 'Active'}
                       </td>
+                      <td className="py-2 px-3 font-mono font-bold text-purple-400">
+                        {rec.overtime_hours && rec.overtime_hours > 0 ? `+${rec.overtime_hours}h` : '—'}
+                      </td>
                       <td className="py-2 px-3 uppercase font-mono text-[10px] text-slate-400">
                         {rec.work_mode}
+                      </td>
+                      <td className="py-2 px-3 font-mono text-[10px] text-slate-300 max-w-[150px] truncate" title={rec.punch_in_location || 'System Verified'}>
+                        <span className="text-blue-400">📍</span> {rec.punch_in_location || 'Desktop Verified'}
+                      </td>
+                      <td className="py-2 px-3 font-mono text-[10px] text-slate-400 max-w-[150px] truncate" title={rec.punch_out_location || '—'}>
+                        {rec.punch_out_location ? (
+                          <>
+                            <span className="text-rose-400">📍</span> {rec.punch_out_location}
+                          </>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className="py-2 px-3">
                         <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${stat.text} ${stat.border}`}>
                           {rec.status.toUpperCase()}
                         </span>
                       </td>
-                      <td className="py-2 px-3 text-slate-400 truncate max-w-[200px]">
+                      <td className="py-2 px-3 text-slate-400 truncate max-w-[180px]">
                         {rec.notes || '—'}
                       </td>
                     </tr>
@@ -298,7 +340,18 @@ export function AttendancePage() {
           </div>
         </TabsContent>
 
-        {/* Tab 2: Live Squad Register */}
+        {/* Tab 2: Live Geo-Map & Radar */}
+        {isManagerOrAdmin && (
+          <TabsContent value="geo-map">
+            <GeoMapView 
+              attendance={attendance} 
+              profiles={profiles} 
+              todayStr={todayStr} 
+            />
+          </TabsContent>
+        )}
+
+        {/* Tab 3: Live Squad Register */}
         {isManagerOrAdmin && (
           <TabsContent value="team-register">
             <div className="desktop-panel rounded overflow-hidden">
@@ -309,6 +362,7 @@ export function AttendancePage() {
                     <th className="py-2 px-3">Designation</th>
                     <th className="py-2 px-3">Clock In</th>
                     <th className="py-2 px-3">Work Mode</th>
+                    <th className="py-2 px-3">Punch Location</th>
                     <th className="py-2 px-3">Status</th>
                     <th className="py-2 px-3">Duration</th>
                   </tr>
@@ -324,7 +378,10 @@ export function AttendancePage() {
                         <td className="py-2 px-3">
                           <div className="flex items-center gap-2">
                             <UserAvatar name={p.full_name} avatarUrl={p.avatar_url} size="sm" className="h-5 w-5 text-[9px]" />
-                            <span className="font-medium text-slate-100">{p.full_name}</span>
+                            <div>
+                              <div className="font-medium text-slate-100">{p.full_name}</div>
+                              <div className="text-[10px] text-slate-500 font-mono">{p.email}</div>
+                            </div>
                           </div>
                         </td>
                         <td className="py-2 px-3 text-slate-400 capitalize">{p.role}</td>
@@ -333,6 +390,15 @@ export function AttendancePage() {
                         </td>
                         <td className="py-2 px-3 uppercase font-mono text-[10px] text-slate-400">
                           {att?.work_mode || p.work_location}
+                        </td>
+                        <td className="py-2 px-3 font-mono text-[10px] text-slate-300 max-w-[160px] truncate" title={att?.punch_in_location || 'Not clocked in'}>
+                          {att?.punch_in_location ? (
+                            <span className="flex items-center gap-1">
+                              <span className="text-blue-400">📍</span> {att.punch_in_location}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">—</span>
+                          )}
                         </td>
                         <td className="py-2 px-3">
                           <span
@@ -359,7 +425,7 @@ export function AttendancePage() {
           </TabsContent>
         )}
 
-        {/* Tab 3: Corrections */}
+        {/* Tab 4: Corrections */}
         {isManagerOrAdmin && (
           <TabsContent value="corrections">
             <div className="desktop-panel rounded p-3">

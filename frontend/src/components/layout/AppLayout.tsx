@@ -9,6 +9,7 @@ import { ApplyLeaveModal } from '@/components/shared/ApplyLeaveModal';
 import { SubmitStandupModal } from '@/components/shared/SubmitStandupModal';
 import { ScheduleMeetingModal } from '@/components/shared/ScheduleMeetingModal';
 import { LoginModal } from '@/components/shared/LoginModal';
+import { PunchLocationModal } from '@/components/shared/PunchLocationModal';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
 import { isSupabaseConfigured } from '@/lib/supabase';
@@ -138,6 +139,7 @@ export function AppLayout() {
 
       {/* Modals & Command Palette */}
       <LoginModal />
+      <PunchLocationModal />
       <CommandPalette />
       <CreateTaskModal />
       <ApplyLeaveModal />

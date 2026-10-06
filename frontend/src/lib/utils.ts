@@ -102,3 +102,64 @@ export function getInitials(name: string): string {
   if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
+
+/**
+ * Calculates which occurrence of Saturday in the month this is (1st, 2nd, 3rd, 4th, 5th)
+ */
+export function getSaturdayOccurrence(dateInput: Date | string): number {
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  const dayOfMonth = d.getDate();
+  return Math.ceil(dayOfMonth / 7);
+}
+
+/**
+ * Determines if a given date (especially Saturday) is an official off-day or emergency working day
+ */
+export function isSaturdayOffDay(
+  dateInput: Date | string,
+  policy?: { saturday_off_rule?: string; working_saturdays_override?: string[] }
+): { isOff: boolean; isOverrideWorking: boolean; occurrence: number; label: string } {
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  const dateStr = d.toISOString().split('T')[0];
+  const dayOfWeek = d.getDay(); // 6 is Saturday
+
+  if (dayOfWeek !== 6) {
+    return { isOff: false, isOverrideWorking: false, occurrence: 0, label: 'Weekday' };
+  }
+
+  const occurrence = getSaturdayOccurrence(d);
+  const ordinals = ['1st', '2nd', '3rd', '4th', '5th'];
+  const ordLabel = `${ordinals[occurrence - 1] || `${occurrence}th`} Saturday`;
+
+  const overrides = policy?.working_saturdays_override || [];
+  const isOverrideWorking = overrides.includes(dateStr);
+
+  if (isOverrideWorking) {
+    return {
+      isOff: false,
+      isOverrideWorking: true,
+      occurrence,
+      label: `${ordLabel} (Urgent Working Day)`,
+    };
+  }
+
+  const rule = policy?.saturday_off_rule || '3rd_4th';
+  let isDefaultOff = false;
+
+  if (rule === '3rd_4th') {
+    isDefaultOff = occurrence === 3 || occurrence === 4;
+  } else if (rule === '2nd_4th') {
+    isDefaultOff = occurrence === 2 || occurrence === 4;
+  } else if (rule === 'all') {
+    isDefaultOff = true;
+  } else if (rule === 'none') {
+    isDefaultOff = false;
+  }
+
+  return {
+    isOff: isDefaultOff,
+    isOverrideWorking: false,
+    occurrence,
+    label: isDefaultOff ? `${ordLabel} (Official Off)` : `${ordLabel} (Regular Working Day)`,
+  };
+}
