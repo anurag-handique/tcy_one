@@ -245,6 +245,7 @@ export interface MeetingParticipant {
   employee_id: string;
   employee?: Profile;
   status: ParticipantStatus;
+  decline_reason?: string;
   joined_at?: string;
 }
 

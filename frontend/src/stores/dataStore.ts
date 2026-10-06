@@ -20,6 +20,7 @@ import {
   TaskStatus,
   WorkMode,
   UserRole,
+  ParticipantStatus,
 } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import {
@@ -122,7 +123,7 @@ interface DataState {
   // Meeting Actions
   createMeeting: (meeting: Omit<Meeting, 'id' | 'created_at' | 'updated_at'>) => Meeting;
   updateMeetingStatus: (id: string, status: Meeting['status']) => void;
-  respondToMeeting: (meetingId: string, employeeId: string, status: 'accepted' | 'declined' | 'tentative') => void;
+  respondToMeeting: (meetingId: string, employeeId: string, status: ParticipantStatus, declineReason?: string) => void;
 
   // Project Actions
   createProject: (project: Omit<Project, 'id' | 'created_at' | 'updated_at'>) => Project;
@@ -198,6 +199,7 @@ export const useDataStore = create<DataState>()(
             { data: standupsData },
             { data: standupResponsesData },
             { data: meetingsData },
+            { data: meetingParticipantsData },
             { data: notifsData },
             { data: holidaysData },
           ] = await Promise.all([
@@ -212,6 +214,7 @@ export const useDataStore = create<DataState>()(
             supabase.from('standups').select('*').order('date', { ascending: false }),
             supabase.from('standup_responses').select('*').order('submitted_at', { ascending: false }),
             supabase.from('meetings').select('*').order('start_time', { ascending: true }),
+            supabase.from('meeting_participants').select('*'),
             supabase.from('notifications').select('*').order('created_at', { ascending: false }),
             supabase.from('holidays').select('*').order('holiday_date', { ascending: true }),
           ]);
@@ -272,22 +275,32 @@ export const useDataStore = create<DataState>()(
             };
           });
 
-          set({
-            profiles: activeProfilesList,
-            departments: activeDepartments,
-            designations: activeDesignations,
-            attendance: mergedAttendance,
-            leaveTypes: leaveTypesData && leaveTypesData.length > 0 ? leaveTypesData : get().leaveTypes,
-            leaveRequests: leaveReqsData && leaveReqsData.length > 0 ? leaveReqsData : get().leaveRequests,
-            projects: projectsData && projectsData.length > 0 ? projectsData : get().projects,
-            tasks: enrichedTasks,
-            standups: standupsData || [],
-            standupResponses: standupResponsesData || [],
-            meetings: meetingsData && meetingsData.length > 0 ? meetingsData : get().meetings,
-            notifications: notifsData && notifsData.length > 0 ? notifsData : get().notifications,
-            holidays: holidaysData && holidaysData.length > 0 ? holidaysData : get().holidays,
-            isLoadingFromSupabase: false,
-          });
+            const enrichedMeetings = (meetingsData && meetingsData.length > 0 ? meetingsData : get().meetings).map((m: Meeting) => {
+              const parts = (meetingParticipantsData || []).filter((p: any) => p.meeting_id === m.id);
+              const creator = activeProfilesList.find((p) => p.id === m.created_by);
+              return {
+                ...m,
+                creator: creator || m.creator,
+                participants: parts.length > 0 ? parts : m.participants || [],
+              };
+            });
+
+            set({
+              profiles: activeProfilesList,
+              departments: activeDepartments,
+              designations: activeDesignations,
+              attendance: mergedAttendance,
+              leaveTypes: leaveTypesData && leaveTypesData.length > 0 ? leaveTypesData : get().leaveTypes,
+              leaveRequests: leaveReqsData && leaveReqsData.length > 0 ? leaveReqsData : get().leaveRequests,
+              projects: projectsData && projectsData.length > 0 ? projectsData : get().projects,
+              tasks: enrichedTasks,
+              standups: standupsData || [],
+              standupResponses: standupResponsesData || [],
+              meetings: enrichedMeetings,
+              notifications: notifsData && notifsData.length > 0 ? notifsData : get().notifications,
+              holidays: holidaysData && holidaysData.length > 0 ? holidaysData : get().holidays,
+              isLoadingFromSupabase: false,
+            });
         } catch (err) {
           console.error('Error fetching Supabase records:', err);
           set({ isLoadingFromSupabase: false });
@@ -856,30 +869,98 @@ export const useDataStore = create<DataState>()(
 
       // Meetings
       createMeeting: (meetingData) => {
+        const newMeetingId = 'm-' + Date.now();
+        const profilesList = get().profiles || [];
+        const creatorProfile = profilesList.find((p) => p.id === meetingData.created_by);
+        const creatorName = creatorProfile?.full_name || 'Team Member';
+
+        const initialParticipants = (meetingData.participants || []).map((p, idx) => ({
+          ...p,
+          id: p.id || `mp-${Date.now()}-${idx}`,
+          meeting_id: newMeetingId,
+        }));
+
         const newMeeting: Meeting = {
           ...meetingData,
-          id: 'm-' + Date.now(),
+          id: newMeetingId,
+          creator: creatorProfile,
+          participants: initialParticipants,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
 
+        // Create notifications for invited members
+        const newNotifications: NotificationItem[] = initialParticipants
+          .filter((p) => p.employee_id !== meetingData.created_by)
+          .map((p) => ({
+            id: 'n-meet-' + Date.now() + '-' + p.employee_id,
+            employee_id: p.employee_id,
+            title: 'Meeting Invitation',
+            message: `${creatorName} invited you to "${meetingData.title}"`,
+            type: 'meeting',
+            is_read: false,
+            action_url: '/meetings',
+            created_at: new Date().toISOString(),
+          }));
+
         set((state) => ({
           meetings: [newMeeting, ...state.meetings],
+          notifications: [...newNotifications, ...state.notifications],
         }));
 
         if (supabase && isSupabaseConfigured) {
-          supabase.from('meetings').insert({
-            title: meetingData.title,
-            description: meetingData.description,
-            agenda: meetingData.agenda,
-            meeting_url: meetingData.meeting_url,
-            room_location: meetingData.room_location,
-            start_time: meetingData.start_time,
-            end_time: meetingData.end_time,
-            status: meetingData.status,
-            created_by: meetingData.created_by,
-            project_id: meetingData.project_id,
-          }).then();
+          const client = supabase;
+          client
+            .from('meetings')
+            .insert({
+              title: meetingData.title,
+              description: meetingData.description || null,
+              agenda: meetingData.agenda || null,
+              meeting_url: meetingData.meeting_url || null,
+              room_location: meetingData.room_location || null,
+              start_time: meetingData.start_time,
+              end_time: meetingData.end_time,
+              status: meetingData.status,
+              created_by: meetingData.created_by,
+              project_id: meetingData.project_id || null,
+            })
+            .select()
+            .then(
+              ({ data: createdRows, error }) => {
+                if (!error && createdRows && createdRows[0]) {
+                  const dbMeetingId = createdRows[0].id;
+                  if (initialParticipants.length > 0) {
+                    const participantRows = initialParticipants.map((p) => ({
+                      meeting_id: dbMeetingId,
+                      employee_id: p.employee_id,
+                      status: p.status,
+                      decline_reason: p.decline_reason || null,
+                    }));
+                    client
+                      .from('meeting_participants')
+                      .insert(participantRows)
+                      .then(null, (e: any) => console.warn('Participants insert:', e?.message || e));
+                  }
+                }
+              },
+              (err: any) => console.warn('Supabase meeting create:', err?.message || err)
+            );
+
+          if (newNotifications.length > 0) {
+            client
+              .from('notifications')
+              .insert(
+                newNotifications.map((n) => ({
+                  employee_id: n.employee_id,
+                  title: n.title,
+                  message: n.message,
+                  type: n.type,
+                  is_read: false,
+                  action_url: n.action_url,
+                }))
+              )
+              .then(null, (err: any) => console.warn('Supabase notifications insert:', err?.message || err));
+          }
         }
 
         return newMeeting;
@@ -895,30 +976,88 @@ export const useDataStore = create<DataState>()(
         }
       },
 
-      respondToMeeting: (meetingId, employeeId, status) => {
-        set((state) => ({
-          meetings: state.meetings.map((m) => {
+      respondToMeeting: (meetingId, employeeId, status, declineReason) => {
+        const state = get();
+        const meeting = state.meetings.find((m) => m.id === meetingId);
+        const responder = state.profiles.find((p) => p.id === employeeId);
+        const responderName = responder?.full_name || 'Team Member';
+
+        let newNotifs: NotificationItem[] = [];
+        if (meeting && meeting.created_by !== employeeId) {
+          const reasonText = declineReason ? ` Reason: "${declineReason}"` : '';
+          const notifMsg = status === 'declined'
+            ? `${responderName} declined "${meeting.title}".${reasonText}`
+            : `${responderName} accepted "${meeting.title}".`;
+
+          newNotifs.push({
+            id: 'n-rsvp-' + Date.now(),
+            employee_id: meeting.created_by,
+            title: status === 'declined' ? 'Meeting Invitation Declined' : 'Meeting Invitation Accepted',
+            message: notifMsg,
+            type: 'meeting',
+            is_read: false,
+            action_url: '/meetings',
+            created_at: new Date().toISOString(),
+          });
+        }
+
+        set((prevState) => ({
+          notifications: [...newNotifs, ...prevState.notifications],
+          meetings: prevState.meetings.map((m) => {
             if (m.id !== meetingId) return m;
             const participants = m.participants || [];
             const existing = participants.find((p) => p.employee_id === employeeId);
             let updatedParticipants;
             if (existing) {
               updatedParticipants = participants.map((p) =>
-                p.employee_id === employeeId ? { ...p, status, joined_at: new Date().toISOString() } : p
+                p.employee_id === employeeId
+                  ? { ...p, status, decline_reason: declineReason || undefined, joined_at: new Date().toISOString() }
+                  : p
               );
             } else {
-              updatedParticipants = [...participants, { id: 'mp-' + Date.now(), meeting_id: meetingId, employee_id: employeeId, status }];
+              updatedParticipants = [
+                ...participants,
+                {
+                  id: 'mp-' + Date.now(),
+                  meeting_id: meetingId,
+                  employee_id: employeeId,
+                  status,
+                  decline_reason: declineReason || undefined,
+                  joined_at: new Date().toISOString(),
+                },
+              ];
             }
             return { ...m, participants: updatedParticipants };
           }),
         }));
 
         if (supabase && isSupabaseConfigured) {
-          supabase.from('meeting_participants').upsert({
-            meeting_id: meetingId,
-            employee_id: employeeId,
-            status,
-          }).then();
+          const client = supabase;
+          client
+            .from('meeting_participants')
+            .upsert({
+              meeting_id: meetingId,
+              employee_id: employeeId,
+              status,
+              decline_reason: declineReason || null,
+            })
+            .then(null, (err: any) => console.warn('Supabase meeting participant upsert:', err?.message || err));
+
+          if (newNotifs.length > 0) {
+            client
+              .from('notifications')
+              .insert(
+                newNotifs.map((n) => ({
+                  employee_id: n.employee_id,
+                  title: n.title,
+                  message: n.message,
+                  type: n.type,
+                  is_read: false,
+                  action_url: n.action_url,
+                }))
+              )
+              .then(null, (err: any) => console.warn('Supabase notifications insert:', err?.message || err));
+          }
         }
       },
 
