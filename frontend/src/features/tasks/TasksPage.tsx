@@ -837,12 +837,12 @@ export function TasksPage() {
 
         return (
           <Dialog open={Boolean(activeDetailTask)} onOpenChange={() => setActiveDetailTask(null)}>
-            <DialogContent className="max-w-3xl bg-[#0c0f17] border-[#1f2637] p-6 shadow-2xl">
+            <DialogContent className="max-w-4xl bg-[#0c0f17] border-[#1f2637] p-6 shadow-2xl rounded-2xl">
               {/* Jira Breadcrumbs / Issue Key Header */}
               <DialogHeader className="border-b border-[#1b2230] pb-3 pr-10">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 font-mono text-xs">
-                    <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#161c28] border border-[#232c3f] text-slate-300">
+                    <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#161c28] border border-[#232c3f] text-slate-300">
                       {issueType.icon}
                       <span>{currentTaskProject?.code || 'PROJECT'}</span>
                     </span>
@@ -852,7 +852,7 @@ export function TasksPage() {
 
                   {/* Current Status Pill with Icon */}
                   <span
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-mono uppercase rounded border font-bold ${getStageInfo(activeDetailTask.status).pillColor}`}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-full border font-bold whitespace-nowrap ${getStageInfo(activeDetailTask.status).pillColor}`}
                   >
                     {getStageInfo(activeDetailTask.status).smallIcon}
                     <span>{activeDetailTask.status.replace('_', ' ')}</span>
@@ -869,9 +869,9 @@ export function TasksPage() {
               </DialogHeader>
 
               {/* 2-Column Jira Layout */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-3">
-                {/* Left 2 Cols: Description & Comments */}
-                <div className="md:col-span-2 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 pt-3">
+                {/* Left 7 Cols: Description & Comments */}
+                <div className="md:col-span-7 space-y-4">
                   {/* Description Section */}
                   <div>
                     <label className="text-[11px] font-mono uppercase text-slate-400 font-semibold block mb-1">
@@ -946,14 +946,14 @@ export function TasksPage() {
                 </div>
 
                 {/* Right 1 Col: Jira Metadata Sidebar */}
-                <div className="space-y-3 bg-[#0e121c] p-3.5 rounded-lg border border-[#1b2230] text-xs">
+                <div className="md:col-span-5 space-y-3 bg-[#0e121c] p-3.5 rounded-xl border border-[#1b2230] text-xs">
                   <span className="font-mono text-[11px] font-bold text-slate-300 uppercase tracking-wide block border-b border-[#1b2230] pb-1.5">
                     Issue Details
                   </span>
 
                   {/* Status Workflow Selector */}
                   <div>
-                    <span className="text-slate-400 block text-[10px] font-mono uppercase mb-1">Workflow Status</span>
+                    <span className="text-slate-400 block text-[10px] font-mono uppercase mb-1.5 font-semibold">Workflow Status</span>
                     <div className="grid grid-cols-2 gap-1.5">
                       {(['todo', 'in_progress', 'review', 'done'] as TaskStatus[]).map((st) => {
                         const isCurrent = activeDetailTask.status === st;
@@ -967,14 +967,14 @@ export function TasksPage() {
                               setActiveDetailTask({ ...activeDetailTask, status: st });
                               toast.success(`Moved to ${stInfo.label}`);
                             }}
-                            className={`flex items-center justify-center gap-1.5 px-2 py-1 text-[10.5px] font-mono rounded transition-all border text-center ${
+                            className={`flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] font-mono rounded-lg transition-all border text-center whitespace-nowrap overflow-hidden ${
                               isCurrent
-                                ? stInfo.activeBtnBg
+                                ? `${stInfo.activeBtnBg} shadow-sm ring-1 ring-blue-500/30`
                                 : 'bg-[#141824] text-slate-400 border-[#222a3d] hover:text-white hover:bg-[#1a2133]'
                             }`}
                           >
-                            {stInfo.smallIcon}
-                            <span>{stInfo.label}</span>
+                            <span className="shrink-0">{stInfo.smallIcon}</span>
+                            <span className="whitespace-nowrap">{stInfo.label}</span>
                           </button>
                         );
                       })}
