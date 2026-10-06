@@ -52,8 +52,10 @@ export function Sidebar() {
     {
       group: 'ORGANIZATION',
       items: [
-        { to: '/team', label: 'Team Directory', icon: Users2, badge: null },
-        { to: '/organization', label: 'Departments & Roles', icon: GitFork, badge: null },
+        ...(isManagerOrAdmin ? [
+          { to: '/team', label: 'Team Directory', icon: Users2, badge: null },
+          { to: '/organization', label: 'Departments & Roles', icon: GitFork, badge: null },
+        ] : []),
         { to: '/reports', label: 'Reports & Analytics', icon: BarChart3, badge: null },
         { to: '/settings', label: 'System Settings', icon: Settings, badge: null },
       ],
