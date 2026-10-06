@@ -11,14 +11,11 @@ import {
   Search,
   MessageSquare,
   Crown,
-  Calendar,
-  AlertCircle,
-  HelpCircle,
   Check,
   X,
-  Sparkles,
   Pencil,
   Trash2,
+  MapPin,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
@@ -29,11 +26,11 @@ import { UserAvatar } from '@/components/ui/Avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog';
 import { Textarea } from '@/components/ui/Textarea';
 import { toast } from 'sonner';
-import { Meeting, MeetingParticipant } from '@/types';
+import { Meeting } from '@/types';
 
 export function MeetingsPage() {
   const { currentUser, activeRole } = useAuthStore();
-  const { meetings, projects, profiles, respondToMeeting, deleteMeeting, updateMeetingStatus } = useDataStore();
+  const { meetings, projects, profiles, respondToMeeting, deleteMeeting } = useDataStore();
   const { setMeetingModalOpen } = useUIStore();
 
   const isElevatedUser =
@@ -157,25 +154,25 @@ export function MeetingsPage() {
       {/* Header Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1b202c] pb-3">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <h1 className="text-base font-bold text-white tracking-tight font-mono">
-              INTERNAL SYNCHRONIZATIONS & MEETINGS
+              MEETINGS & SYNCS
             </h1>
             {awaitingCount > 0 && (
-              <span className="font-mono text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded animate-pulse">
-                {awaitingCount} RSVP{awaitingCount > 1 ? 's' : ''} Pending
+              <span className="font-mono text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full font-semibold">
+                {awaitingCount} RSVP Pending
               </span>
             )}
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Squad ceremonies, client syncs, architecture reviews, and live RSVP attendee tracking.
+            Squad syncs, client calls, sprint reviews, and live RSVP attendee tracking.
           </p>
         </div>
 
         <Button
           size="sm"
           onClick={() => setMeetingModalOpen(true, null)}
-          className="h-7 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium gap-1"
+          className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-3.5 rounded-full gap-1.5 shadow-sm self-start sm:self-auto"
         >
           <Plus className="h-3.5 w-3.5" />
           <span>Schedule Meeting</span>
@@ -184,26 +181,26 @@ export function MeetingsPage() {
 
       {/* Filter Tabs & Search Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-        <div className="flex items-center gap-1 bg-[#090b10] border border-[#1b202c] p-1 rounded">
+        <div className="flex items-center gap-1 bg-[#0a0d14] border border-[#1b202c] p-1 rounded-full overflow-x-auto">
           <button
             onClick={() => setActiveTab('all')}
-            className={`px-2.5 py-1 text-[11px] font-mono rounded transition-colors ${
+            className={`px-3 py-1 text-xs font-mono rounded-full transition-all whitespace-nowrap ${
               activeTab === 'all'
-                ? 'bg-blue-600 text-white font-semibold'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            All Meetings ({meetings.length})
+            All ({meetings.length})
           </button>
           <button
             onClick={() => setActiveTab('invites')}
-            className={`px-2.5 py-1 text-[11px] font-mono rounded transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-1 text-xs font-mono rounded-full transition-all flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'invites'
-                ? 'bg-blue-600 text-white font-semibold'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <span>Awaiting RSVP</span>
+            <span>Invited</span>
             {awaitingCount > 0 && (
               <span className="h-4 min-w-4 px-1 rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 flex items-center justify-center">
                 {awaitingCount}
@@ -212,20 +209,20 @@ export function MeetingsPage() {
           </button>
           <button
             onClick={() => setActiveTab('hosted')}
-            className={`px-2.5 py-1 text-[11px] font-mono rounded transition-colors ${
+            className={`px-3 py-1 text-xs font-mono rounded-full transition-all whitespace-nowrap ${
               activeTab === 'hosted'
-                ? 'bg-blue-600 text-white font-semibold'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             Hosted by Me
           </button>
           <button
             onClick={() => setActiveTab('upcoming')}
-            className={`px-2.5 py-1 text-[11px] font-mono rounded transition-colors ${
+            className={`px-3 py-1 text-xs font-mono rounded-full transition-all whitespace-nowrap ${
               activeTab === 'upcoming'
-                ? 'bg-blue-600 text-white font-semibold'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             Upcoming
@@ -233,32 +230,36 @@ export function MeetingsPage() {
         </div>
 
         <div className="relative min-w-[220px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500 pointer-events-none" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
           <input
             type="text"
             placeholder="Search meetings, host, project..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-8 bg-[#090b10] border border-[#1b202c] rounded-full pl-9 pr-3 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
+            className="w-full h-8 bg-[#0a0d14] border border-[#1b202c] rounded-full pl-9 pr-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500/80 focus:ring-1 focus:ring-blue-500/30 transition-all shadow-inner"
           />
         </div>
       </div>
 
-      {/* Grid */}
+      {/* Meeting Cards Grid */}
       {filteredMeetings.length === 0 ? (
-        <div className="desktop-panel rounded-lg p-12 text-center flex flex-col items-center justify-center space-y-3">
-          <div className="h-10 w-10 rounded-full bg-[#141824] border border-[#232a3a] flex items-center justify-center text-slate-500">
-            <Video className="h-5 w-5 text-blue-400" />
+        <div className="desktop-panel rounded-xl p-12 text-center flex flex-col items-center justify-center space-y-3 bg-[#0a0d14] border border-[#1b202c]">
+          <div className="h-10 w-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+            <Video className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white font-mono">NO MEETINGS MATCHED</h3>
+            <h3 className="text-sm font-bold text-white font-mono">NO MEETINGS FOUND</h3>
             <p className="text-xs text-slate-400 mt-0.5">
               {searchQuery || activeTab !== 'all'
-                ? 'Try adjusting your filter or search query.'
-                : 'Schedule a sprint review, squad sync, or architecture check-in.'}
+                ? 'Try adjusting your search query or tab filter.'
+                : 'Schedule a sprint review, squad sync, or client check-in.'}
             </p>
           </div>
-          <Button size="sm" onClick={() => setMeetingModalOpen(true, null)} className="h-7 text-xs bg-blue-600 gap-1 font-mono">
+          <Button
+            size="sm"
+            onClick={() => setMeetingModalOpen(true, null)}
+            className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-full px-4 gap-1.5 font-medium"
+          >
             <Plus className="h-3.5 w-3.5" />
             <span>Schedule Meeting</span>
           </Button>
@@ -282,20 +283,17 @@ export function MeetingsPage() {
             return (
               <div
                 key={m.id}
-                className="desktop-panel rounded-lg p-4 flex flex-col justify-between space-y-3.5 border border-[#1b202c] hover:border-[#2a3449] transition-all bg-[#0d1017]"
+                className="desktop-panel rounded-xl p-4 flex flex-col justify-between space-y-3 border border-[#1b202c] hover:border-[#2a3449] transition-all bg-[#0a0d14] group"
               >
-                <div>
-                  {/* Top Bar: Project Tag, Status & Action Icons (Edit / Delete) */}
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-[10px] bg-[#141824] border border-[#232a38] px-2 py-0.5 rounded text-blue-300 font-semibold">
+                <div className="space-y-2.5">
+                  {/* Row 1: Project, Status & Manage buttons */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded text-blue-300 font-semibold">
                         {proj ? `${proj.code || 'PRJ'} • ${proj.name}` : 'GENERAL SQUAD'}
                       </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
                       <span
-                        className={`text-[9px] font-mono px-2 py-0.5 rounded border uppercase font-semibold ${
+                        className={`text-[9px] font-mono px-2 py-0.5 rounded border uppercase font-bold ${
                           m.status === 'scheduled'
                             ? 'text-purple-400 bg-purple-500/10 border-purple-500/20'
                             : m.status === 'ongoing'
@@ -305,270 +303,188 @@ export function MeetingsPage() {
                       >
                         {m.status}
                       </span>
-
-                      {canManage && (
-                        <div className="flex items-center gap-1 ml-1 bg-[#090b10] p-0.5 rounded border border-[#1b202c]">
-                          <button
-                            onClick={() => handleEditMeeting(m)}
-                            className="p-1 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
-                            title="Edit Meeting"
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </button>
-                          <button
-                            onClick={() => handleOpenDeleteModal(m)}
-                            className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
-                            title="Delete Meeting"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      )}
                     </div>
+
+                    {canManage && (
+                      <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleEditMeeting(m)}
+                          className="p-1 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
+                          title="Edit Meeting"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => handleOpenDeleteModal(m)}
+                          className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                          title="Delete Meeting"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Title & Description */}
-                  <h3 className="text-sm font-bold text-white tracking-tight leading-snug">{m.title}</h3>
-                  {m.description && (
-                    <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                      {m.description}
-                    </p>
-                  )}
+                  <div>
+                    <h3 className="text-sm font-bold text-white tracking-tight leading-snug">
+                      {m.title}
+                    </h3>
+                    {m.description && (
+                      <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                        {m.description}
+                      </p>
+                    )}
+                  </div>
 
-                  {/* Meeting Metadata Box */}
-                  <div className="mt-3 space-y-1.5 bg-[#080a0f] p-3 rounded border border-[#1a1f2c] text-xs">
-                    <div className="flex items-center gap-2 font-mono text-[11px] text-slate-300">
+                  {/* Time & Location meta */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-300 font-mono pt-1">
+                    <div className="flex items-center gap-1.5 text-slate-200">
                       <Clock className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-                      <span className="font-medium">
-                        {formatDate(m.start_time, 'EEE, dd MMM yyyy')} • {formatTime(m.start_time)} - {formatTime(m.end_time)}
+                      <span>
+                        {formatDate(m.start_time, 'EEE, dd MMM')} • {formatTime(m.start_time)} - {formatTime(m.end_time)}
                       </span>
                     </div>
 
                     {m.room_location && (
-                      <div className="flex items-center gap-2 text-slate-400 text-[11px] font-mono">
-                        <Building className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+                      <div className="flex items-center gap-1.5 text-slate-400">
+                        <MapPin className="h-3.5 w-3.5 text-purple-400 shrink-0" />
                         <span>{m.room_location}</span>
-                      </div>
-                    )}
-
-                    {m.agenda && (
-                      <div className="pt-2 mt-2 border-t border-[#171b26] text-[11px] text-slate-400 whitespace-pre-line">
-                        <span className="uppercase font-mono block text-[10px] text-slate-500 mb-0.5">
-                          Agenda & Discussion Items:
-                        </span>
-                        {m.agenda}
                       </div>
                     )}
                   </div>
 
-                  {/* Meeting Creator / Host Profile Highlight */}
-                  <div className="mt-3 p-2.5 rounded bg-[#10141f] border border-[#1f2637] flex items-center justify-between gap-2">
+                  {/* Organizer & Attendees row */}
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#161b26]">
                     <div className="flex items-center gap-2 min-w-0">
                       <UserAvatar
                         name={host?.full_name || 'Organizer'}
                         avatarUrl={host?.avatar_url}
                         size="sm"
-                        className="h-6 w-6 text-[10px] border border-blue-500/40"
+                        className="h-5.5 w-5.5 text-[9px] border border-blue-500/30"
                       />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-semibold text-slate-200 truncate">
-                            {host?.full_name || 'Squad Organizer'}
-                          </span>
-                          {isCreator && (
-                            <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                              You
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-mono block truncate">
-                          Organizer • {host?.designation_title || host?.role?.replace('_', ' ') || 'Team Lead'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="shrink-0 flex items-center gap-1 text-[10px] font-mono text-slate-400 bg-[#090b10] px-2 py-0.5 rounded border border-[#1b202c]">
-                      <Crown className="h-3 w-3 text-amber-400" />
-                      <span>Host</span>
-                    </div>
-                  </div>
-
-                  {/* Attendee Roster Preview & RSVP Stats */}
-                  <div className="mt-3 pt-2.5 border-t border-[#181d2a]">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-1.5 text-xs font-mono text-slate-300">
-                        <Users className="h-3.5 w-3.5 text-blue-400" />
-                        <span className="text-[11px] uppercase font-bold text-slate-200">
-                          Squad Attendees ({participants.length})
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          setRosterMeeting(m);
-                          setRosterModalOpen(true);
-                        }}
-                        className="text-[10px] font-mono text-blue-400 hover:text-blue-300 hover:underline"
-                      >
-                        View All Details
-                      </button>
-                    </div>
-
-                    {/* Summary Badges */}
-                    <div className="flex items-center gap-2 text-[10px] font-mono mb-2">
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                        {acceptedCount} Accepted
+                      <span className="text-xs text-slate-300 truncate font-medium">
+                        {host?.full_name || 'Squad Organizer'}
+                        {isCreator && <span className="text-blue-400 font-mono text-[10px] ml-1">(You)</span>}
                       </span>
-                      {declinedCount > 0 && (
-                        <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                          {declinedCount} Declined
-                        </span>
-                      )}
-                      {pendingCount > 0 && (
-                        <span className="px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20">
-                          {pendingCount} Pending
-                        </span>
-                      )}
                     </div>
 
-                    {/* Roster Chips */}
-                    <div className="flex flex-wrap gap-1.5">
-                      {participants.slice(0, 5).map((p) => {
-                        const emp = profiles.find((prof) => prof.id === p.employee_id);
-                        const isAccepted = p.status === 'accepted';
-                        const isDeclined = p.status === 'declined';
-
-                        return (
-                          <div
-                            key={p.id || p.employee_id}
-                            className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-mono border transition-colors ${
-                              isAccepted
-                                ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300'
-                                : isDeclined
-                                ? 'bg-rose-950/30 border-rose-500/30 text-rose-300'
-                                : 'bg-[#10141f] border-[#222838] text-slate-400'
-                            }`}
-                            title={
-                              isDeclined && p.decline_reason
-                                ? `Declined: "${p.decline_reason}"`
-                                : `${emp?.full_name || 'Member'}: ${p.status}`
-                            }
-                          >
+                    {/* Compact Attendees Stack */}
+                    <button
+                      onClick={() => {
+                        setRosterMeeting(m);
+                        setRosterModalOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                      title="View attendee details"
+                    >
+                      <div className="flex -space-x-1.5 overflow-hidden">
+                        {participants.slice(0, 4).map((p) => {
+                          const emp = profiles.find((prof) => prof.id === p.employee_id);
+                          return (
                             <UserAvatar
+                              key={p.id || p.employee_id}
                               name={emp?.full_name || 'Member'}
                               avatarUrl={emp?.avatar_url}
                               size="sm"
-                              className="h-3.5 w-3.5 text-[8px]"
+                              className={`h-5 w-5 text-[8px] ring-1 ring-[#0a0d14] ${
+                                p.status === 'accepted'
+                                  ? 'border-emerald-500'
+                                  : p.status === 'declined'
+                                  ? 'border-rose-500'
+                                  : 'border-slate-600'
+                              }`}
                             />
-                            <span className="truncate max-w-[100px]">{emp?.full_name?.split(' ')[0] || 'Member'}</span>
-                            {isAccepted && <CheckCircle className="h-3 w-3 text-emerald-400 shrink-0" />}
-                            {isDeclined && <XCircle className="h-3 w-3 text-rose-400 shrink-0" />}
-                            {!isAccepted && !isDeclined && <Clock className="h-3 w-3 text-slate-500 shrink-0" />}
-                          </div>
-                        );
-                      })}
-
-                      {participants.length > 5 && (
-                        <button
-                          onClick={() => {
-                            setRosterMeeting(m);
-                            setRosterModalOpen(true);
-                          }}
-                          className="px-2 py-1 rounded text-[10px] font-mono bg-[#141824] border border-[#232a38] text-slate-400 hover:text-white"
-                        >
-                          +{participants.length - 5} more
-                        </button>
-                      )}
-                    </div>
+                          );
+                        })}
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-400">
+                        {participants.length}
+                        {acceptedCount > 0 && (
+                          <span className="text-emerald-400 ml-1">({acceptedCount}✓)</span>
+                        )}
+                      </span>
+                    </button>
                   </div>
                 </div>
 
-                {/* Bottom Card Footer: RSVP Actions & Join Call */}
-                <div className="pt-3 border-t border-[#1b202c] flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
+                {/* Bottom Actions Row */}
+                <div className="pt-3 border-t border-[#161b26] flex items-center justify-between gap-2">
+                  {/* Left: Join Call link (only if creator or accepted) */}
+                  <div>
                     {m.meeting_url ? (
-                      <a
-                        href={m.meeting_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-mono text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1 rounded border border-blue-500/30 font-semibold transition-colors"
-                      >
-                        <Video className="h-3.5 w-3.5" />
-                        <span>Join Call</span>
-                        <ExternalLink className="h-2.5 w-2.5 opacity-70" />
-                      </a>
+                      isCreator || myRsvp === 'accepted' ? (
+                        <a
+                          href={m.meeting_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-mono text-blue-400 hover:text-white bg-blue-500/10 hover:bg-blue-600 px-3 py-1 rounded-full border border-blue-500/20 font-semibold transition-all"
+                        >
+                          <Video className="h-3.5 w-3.5" />
+                          <span>Join Call</span>
+                          <ExternalLink className="h-2.5 w-2.5 opacity-70" />
+                        </a>
+                      ) : (
+                        <span className="text-[10px] font-mono text-slate-500">
+                          Accept invite to join
+                        </span>
+                      )
                     ) : (
                       <span className="text-[10px] font-mono text-slate-500 italic">
-                        In-person / No link
+                        In-person sync
                       </span>
                     )}
                   </div>
 
-                  {/* User's RSVP Controls & Host Actions */}
-                  <div className="flex items-center gap-1.5">
+                  {/* Right: RSVP controls */}
+                  <div>
                     {isCreator ? (
+                      <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20 font-semibold flex items-center gap-1">
+                        <Crown className="h-3 w-3" />
+                        <span>Host</span>
+                      </span>
+                    ) : myRsvp === 'accepted' ? (
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
-                          Host
+                        <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                          <CheckCircle className="h-3 w-3" />
+                          <span>Attending</span>
                         </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEditMeeting(m)}
-                          className="h-6 text-[10px] font-mono border-[#242b3c] bg-[#10141f] text-slate-300 hover:text-white gap-1 px-2"
+                        <button
+                          onClick={() => handleOpenDeclineModal(m)}
+                          className="text-[10px] font-mono text-slate-400 hover:text-rose-400 px-1.5 py-0.5 rounded transition-colors"
                         >
-                          <Pencil className="h-2.5 w-2.5" />
-                          <span>Edit</span>
-                        </Button>
+                          Decline
+                        </button>
+                      </div>
+                    ) : myRsvp === 'declined' ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-rose-400 flex items-center gap-1 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
+                          <XCircle className="h-3 w-3" />
+                          <span>Declined</span>
+                        </span>
+                        <button
+                          onClick={() => handleAcceptMeeting(m)}
+                          className="text-[10px] font-mono text-slate-400 hover:text-emerald-400 px-1.5 py-0.5 rounded transition-colors"
+                        >
+                          Accept
+                        </button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1.5 bg-[#090b10] p-1 rounded border border-[#1b202c]">
-                        {myRsvp === 'accepted' ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 px-1.5">
-                              <CheckCircle className="h-3 w-3" />
-                              <span>Attending</span>
-                            </span>
-                            <button
-                              onClick={() => handleOpenDeclineModal(m)}
-                              className="text-[10px] font-mono text-slate-400 hover:text-rose-400 px-1.5 py-0.5 rounded hover:bg-rose-500/10"
-                              title="Change RSVP to Decline"
-                            >
-                              Decline
-                            </button>
-                          </div>
-                        ) : myRsvp === 'declined' ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-mono text-rose-400 flex items-center gap-1 px-1.5">
-                              <XCircle className="h-3 w-3" />
-                              <span>Declined</span>
-                            </span>
-                            <button
-                              onClick={() => handleAcceptMeeting(m)}
-                              className="text-[10px] font-mono text-slate-400 hover:text-emerald-400 px-1.5 py-0.5 rounded hover:bg-emerald-500/10"
-                              title="Change RSVP to Accept"
-                            >
-                              Accept
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => handleAcceptMeeting(m)}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-mono font-semibold transition-colors"
-                            >
-                              <Check className="h-3 w-3 stroke-[3]" />
-                              <span>Accept</span>
-                            </button>
-                            <button
-                              onClick={() => handleOpenDeclineModal(m)}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 hover:text-white border border-rose-500/30 text-[10px] font-mono transition-colors"
-                            >
-                              <X className="h-3 w-3" />
-                              <span>Decline</span>
-                            </button>
-                          </div>
-                        )}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleAcceptMeeting(m)}
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-mono font-medium transition-colors shadow-sm"
+                        >
+                          <Check className="h-3 w-3 stroke-[2.5]" />
+                          <span>Accept</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenDeclineModal(m)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#121620] hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-[#232a3a] hover:border-rose-500/30 text-[11px] font-mono transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                          <span>Decline</span>
+                        </button>
                       </div>
                     )}
                   </div>
@@ -581,40 +497,37 @@ export function MeetingsPage() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded bg-rose-600/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
-                <Trash2 className="h-4 w-4" />
-              </div>
-              <div>
-                <DialogTitle className="text-sm font-bold text-white font-mono">
-                  DELETE INTERNAL MEETING
-                </DialogTitle>
-                <p className="text-[11px] text-slate-400">
-                  This action cannot be undone.
-                </p>
-              </div>
+        <DialogContent className="max-w-md bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-xl">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-[#21262d]">
+            <div className="h-7 w-7 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+              <Trash2 className="h-4 w-4" />
             </div>
-          </DialogHeader>
+            <div>
+              <DialogTitle className="text-sm font-semibold text-white">
+                Delete Meeting
+              </DialogTitle>
+              <p className="text-[11px] text-slate-400">
+                This action will remove the meeting for all invited attendees.
+              </p>
+            </div>
+          </div>
 
-          <div className="space-y-2 pt-2 text-xs">
-            <div className="p-3 rounded bg-[#090b10] border border-[#1b202c] space-y-1">
-              <span className="text-[10px] uppercase font-mono text-slate-500 block">Meeting:</span>
-              <p className="text-sm font-bold text-slate-100">{meetingToDelete?.title}</p>
+          <div className="space-y-3 pt-2 text-xs">
+            <div className="p-3 rounded-lg bg-[#161b22] border border-[#30363d] space-y-1">
+              <p className="text-sm font-semibold text-white">{meetingToDelete?.title}</p>
               {meetingToDelete && (
                 <p className="text-[11px] text-slate-400 font-mono">
-                  Scheduled for {formatDate(meetingToDelete.start_time, 'EEE, dd MMM yyyy')} ({formatTime(meetingToDelete.start_time)})
+                  {formatDate(meetingToDelete.start_time, 'EEE, dd MMM yyyy')} • {formatTime(meetingToDelete.start_time)}
                 </p>
               )}
             </div>
 
-            <p className="text-[11px] text-rose-400 font-mono">
-              Are you sure you want to cancel and permanently delete this internal meeting for all invited participants?
+            <p className="text-xs text-rose-300">
+              Are you sure you want to cancel and delete this meeting?
             </p>
           </div>
 
-          <DialogFooter className="pt-3 border-t border-[#1b202c]">
+          <DialogFooter className="pt-3 border-t border-[#21262d] flex items-center justify-between sm:justify-between w-full">
             <Button
               type="button"
               variant="outline"
@@ -623,7 +536,7 @@ export function MeetingsPage() {
                 setDeleteModalOpen(false);
                 setMeetingToDelete(null);
               }}
-              className="h-7 text-xs border-[#222837] bg-[#12151e]"
+              className="h-8 text-xs border-[#30363d] bg-[#161b22] text-slate-300 hover:bg-[#21262d]"
             >
               Cancel
             </Button>
@@ -631,10 +544,9 @@ export function MeetingsPage() {
               type="button"
               size="sm"
               onClick={handleConfirmDelete}
-              className="h-7 text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium gap-1"
+              className="h-8 text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-4 shadow-sm"
             >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span>Delete Meeting</span>
+              Delete Meeting
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -642,27 +554,25 @@ export function MeetingsPage() {
 
       {/* Decline Reason Dialog */}
       <Dialog open={declineModalOpen} onOpenChange={setDeclineModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded bg-rose-600/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
-                <XCircle className="h-4 w-4" />
-              </div>
-              <div>
-                <DialogTitle className="text-sm font-bold text-white font-mono">
-                  DECLINE MEETING INVITATION
-                </DialogTitle>
-                <p className="text-[11px] text-slate-400">
-                  {targetMeeting?.title}
-                </p>
-              </div>
+        <DialogContent className="max-w-md bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-xl">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-[#21262d]">
+            <div className="h-7 w-7 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+              <XCircle className="h-4 w-4" />
             </div>
-          </DialogHeader>
-
-          <div className="space-y-3 pt-2">
             <div>
-              <label className="text-[11px] font-mono uppercase tracking-wider text-slate-300 block mb-1.5">
-                Select Quick Reason
+              <DialogTitle className="text-sm font-semibold text-white">
+                Decline Invitation
+              </DialogTitle>
+              <p className="text-[11px] text-slate-400 truncate max-w-[280px]">
+                {targetMeeting?.title}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3.5 pt-2 text-xs">
+            <div>
+              <label className="text-xs font-medium text-slate-200 block mb-1.5">
+                Quick Reason
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {presetReasons.map((reason) => (
@@ -670,10 +580,10 @@ export function MeetingsPage() {
                     key={reason}
                     type="button"
                     onClick={() => setDeclineReason(reason)}
-                    className={`px-2 py-1 rounded text-[10px] font-mono transition-colors border ${
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-mono transition-all border ${
                       declineReason === reason
                         ? 'bg-rose-600 text-white border-rose-500 font-semibold'
-                        : 'bg-[#090b10] border-[#1b202c] text-slate-400 hover:text-white hover:border-[#2d3648]'
+                        : 'bg-[#161b22] border-[#30363d] text-slate-400 hover:text-white hover:border-[#484f58]'
                     }`}
                   >
                     {reason}
@@ -683,20 +593,20 @@ export function MeetingsPage() {
             </div>
 
             <div>
-              <label className="text-[11px] font-mono uppercase tracking-wider text-slate-300 block mb-1">
-                Additional Comments / Note for Organizer
+              <label className="text-xs font-medium text-slate-200 block mb-1">
+                Note for Organizer (Optional)
               </label>
               <Textarea
-                placeholder="Explain reason for declining (e.g., conflicting client demo, away from keyboard)..."
-                rows={3}
+                placeholder="Reason for declining..."
+                rows={2}
                 value={declineReason}
                 onChange={(e) => setDeclineReason(e.target.value)}
-                className="mt-1 rounded-none border-[#1f2637] bg-[#0c1018] text-xs font-mono"
+                className="bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 rounded-lg focus:border-rose-500"
               />
             </div>
           </div>
 
-          <DialogFooter className="pt-3 border-t border-[#1b202c]">
+          <DialogFooter className="pt-3 border-t border-[#21262d] flex items-center justify-between sm:justify-between w-full">
             <Button
               type="button"
               variant="outline"
@@ -706,7 +616,7 @@ export function MeetingsPage() {
                 setTargetMeeting(null);
                 setDeclineReason('');
               }}
-              className="h-7 text-xs border-[#222837] bg-[#12151e]"
+              className="h-8 text-xs border-[#30363d] bg-[#161b22] text-slate-300 hover:bg-[#21262d]"
             >
               Cancel
             </Button>
@@ -714,35 +624,32 @@ export function MeetingsPage() {
               type="button"
               size="sm"
               onClick={handleConfirmDecline}
-              className="h-7 text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium gap-1"
+              className="h-8 text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-4 shadow-sm"
             >
-              <XCircle className="h-3.5 w-3.5" />
-              <span>Confirm Decline</span>
+              Confirm Decline
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Full Attendee Roster & Comments Modal */}
+      {/* Attendee Roster Modal */}
       <Dialog open={rosterModalOpen} onOpenChange={setRosterModalOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-                <Users className="h-4 w-4" />
-              </div>
-              <div>
-                <DialogTitle className="text-sm font-bold text-white font-mono">
-                  ATTENDEE ROSTER & LIVE RESPONSES
-                </DialogTitle>
-                <p className="text-[11px] text-slate-400">
-                  {rosterMeeting?.title}
-                </p>
-              </div>
+        <DialogContent className="max-w-md bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-xl max-h-[85vh] overflow-y-auto">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-[#21262d]">
+            <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+              <Users className="h-4 w-4" />
             </div>
-          </DialogHeader>
+            <div>
+              <DialogTitle className="text-sm font-semibold text-white">
+                Attendees & Responses
+              </DialogTitle>
+              <p className="text-[11px] text-slate-400 truncate max-w-[280px]">
+                {rosterMeeting?.title}
+              </p>
+            </div>
+          </div>
 
-          <div className="space-y-2.5 pt-2">
+          <div className="space-y-2 pt-2 text-xs">
             {rosterMeeting?.participants?.map((p) => {
               const emp = profiles.find((prof) => prof.id === p.employee_id);
               const isHost = p.employee_id === rosterMeeting.created_by;
@@ -752,7 +659,7 @@ export function MeetingsPage() {
               return (
                 <div
                   key={p.id || p.employee_id}
-                  className="p-2.5 rounded bg-[#090b10] border border-[#1b202c] space-y-1.5"
+                  className="p-2.5 rounded-lg bg-[#161b22] border border-[#30363d] space-y-1.5"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
@@ -764,53 +671,50 @@ export function MeetingsPage() {
                       />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-semibold text-slate-200 truncate">
+                          <span className="text-xs font-medium text-white truncate">
                             {emp?.full_name || 'Squad Member'}
                           </span>
                           {isHost && (
-                            <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
                               Host
                             </span>
                           )}
                         </div>
-                        <span className="text-[10px] text-slate-400 font-mono block truncate">
-                          {emp?.designation_title || emp?.role?.replace('_', ' ')} • {emp?.email}
+                        <span className="text-[10px] text-slate-400 block truncate">
+                          {emp?.designation_title || emp?.role?.replace('_', ' ')}
                         </span>
                       </div>
                     </div>
 
                     <div className="shrink-0">
                       {isAccepted && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
                           <CheckCircle className="h-3 w-3" />
                           <span>Accepted</span>
                         </span>
                       )}
                       {isDeclined && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-semibold">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-semibold">
                           <XCircle className="h-3 w-3" />
                           <span>Declined</span>
                         </span>
                       )}
                       {!isAccepted && !isDeclined && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20">
                           <Clock className="h-3 w-3" />
-                          <span>Awaiting</span>
+                          <span>Pending</span>
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Display Decline Reason if exists */}
                   {isDeclined && p.decline_reason && (
-                    <div className="mt-1 p-2 rounded bg-rose-950/30 border border-rose-500/20 text-xs text-rose-200">
-                      <div className="flex items-center gap-1 text-[10px] font-mono uppercase text-rose-400 font-semibold mb-0.5">
+                    <div className="p-2 rounded bg-rose-950/20 border border-rose-500/20 text-xs text-rose-300">
+                      <div className="flex items-center gap-1 text-[10px] font-mono text-rose-400 mb-0.5">
                         <MessageSquare className="h-3 w-3" />
-                        <span>Decline Note / Reason:</span>
+                        <span>Reason:</span>
                       </div>
-                      <p className="text-[11px] leading-relaxed italic">
-                        "{p.decline_reason}"
-                      </p>
+                      <p className="text-[11px] italic">"{p.decline_reason}"</p>
                     </div>
                   )}
                 </div>
@@ -818,7 +722,7 @@ export function MeetingsPage() {
             })}
           </div>
 
-          <DialogFooter className="pt-3 border-t border-[#1b202c]">
+          <DialogFooter className="pt-3 border-t border-[#21262d]">
             <Button
               type="button"
               variant="outline"
@@ -827,7 +731,7 @@ export function MeetingsPage() {
                 setRosterModalOpen(false);
                 setRosterMeeting(null);
               }}
-              className="h-7 text-xs border-[#222837] bg-[#12151e]"
+              className="h-8 text-xs border-[#30363d] bg-[#161b22] text-slate-300 hover:bg-[#21262d] w-full"
             >
               Close
             </Button>
@@ -837,4 +741,3 @@ export function MeetingsPage() {
     </div>
   );
 }
-
