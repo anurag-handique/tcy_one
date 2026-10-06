@@ -111,6 +111,7 @@ interface DataState {
   // Project Actions
   createProject: (project: Omit<Project, 'id' | 'created_at' | 'updated_at'>) => Project;
   updateProject: (id: string, updates: Partial<Project>) => void;
+  deleteProject: (id: string) => void;
 
   // Department & Designation Actions
   addDepartment: (name: string, description?: string) => Promise<Department | null>;
@@ -785,6 +786,16 @@ export const useDataStore = create<DataState>()(
 
         if (supabase && isSupabaseConfigured) {
           supabase.from('projects').update(updates).eq('id', id).then();
+        }
+      },
+
+      deleteProject: (id) => {
+        set((state) => ({
+          projects: state.projects.filter((p) => p.id !== id),
+        }));
+
+        if (supabase && isSupabaseConfigured) {
+          supabase.from('projects').delete().eq('id', id).then();
         }
       },
 
