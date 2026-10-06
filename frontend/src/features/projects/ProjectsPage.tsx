@@ -1,26 +1,35 @@
 import * as React from 'react';
 import {
   FolderKanban,
+  LayoutGrid,
+  List,
+  Kanban,
   Plus,
-  Clock,
-  CheckCircle2,
-  Edit,
-  Trash2,
   Search,
   Filter,
-  ShieldAlert,
-  User,
-  ExternalLink,
-  Layers,
-  Sparkles,
-  Calendar,
-  DollarSign,
+  Edit2,
+  Trash2,
+  Clock,
+  CheckCircle2,
   AlertCircle,
+  Calendar,
+  Sparkles,
+  ChevronRight,
+  Check,
+  X,
+  Building2,
+  CircleDashed,
+  PlayCircle,
+  MoreHorizontal,
+  Layers,
+  ArrowUpRight,
+  ShieldCheck,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useDataStore } from '@/stores/dataStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
-import { Project, PriorityLevel, ProjectStatus } from '@/types';
+import { Project, PriorityLevel, ProjectStatus, TaskStatus, Task } from '@/types';
 import { formatDate, formatRupees, getPriorityColor, getStatusColor } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
@@ -30,27 +39,54 @@ import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { toast } from 'sonner';
 
+type ViewMode = 'board' | 'grid' | 'list';
+type ProjectTab = 'tasks_board' | 'tasks_list' | 'overview';
+
 export function ProjectsPage() {
-  const { projects, tasks, profiles, createProject, updateProject, deleteProject } = useDataStore();
+  const {
+    projects,
+    tasks,
+    profiles,
+    createProject,
+    updateProject,
+    deleteProject,
+    createTask,
+    updateTaskStatus,
+    deleteTask,
+  } = useDataStore();
   const { currentUser, activeRole } = useAuthStore();
   const { setTaskModalOpen } = useUIStore();
 
   const isSuperAdmin = activeRole === 'super_admin';
   const isManagerOrAdmin = activeRole === 'manager' || activeRole === 'admin' || isSuperAdmin;
 
-  // Search and Filter State
+  // View & Filter States
+  const [viewMode, setViewMode] = React.useState<ViewMode>('board');
   const [searchQuery, setSearchQuery] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
   const [priorityFilter, setPriorityFilter] = React.useState<string>('all');
+  const [myProjectsOnly, setMyProjectsOnly] = React.useState(false);
 
-  // Modal States
+  // Selected Project Workspace Modal State
+  const [selectedProject, setSelectedProject] = React.useState<Project | null>(null);
+  const [projectTab, setProjectTab] = React.useState<ProjectTab>('tasks_board');
+  const [taskSearchQuery, setTaskSearchQuery] = React.useState('');
+
+  // Quick Task Creation inside Project Board
+  const [quickTaskModalOpen, setQuickTaskModalOpen] = React.useState(false);
+  const [quickTaskTitle, setQuickTaskTitle] = React.useState('');
+  const [quickTaskDesc, setQuickTaskDesc] = React.useState('');
+  const [quickTaskStatus, setQuickTaskStatus] = React.useState<TaskStatus>('todo');
+  const [quickTaskPriority, setQuickTaskPriority] = React.useState<PriorityLevel>('medium');
+  const [quickTaskAssignee, setQuickTaskAssignee] = React.useState(currentUser.id);
+
+  // Project Modals
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
   const [editModalOpen, setEditModalOpen] = React.useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
-  const [selectedProject, setSelectedProject] = React.useState<Project | null>(null);
   const [editingProject, setEditingProject] = React.useState<Project | null>(null);
 
-  // Form State for Create (Budget is optional)
+  // Form State for Create
   const [name, setName] = React.useState('');
   const [code, setCode] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -62,7 +98,7 @@ export function ProjectsPage() {
   const [budget, setBudget] = React.useState('');
   const [managerId, setManagerId] = React.useState(currentUser.id);
 
-  // Form State for Edit (Budget is optional)
+  // Form State for Edit
   const [editName, setEditName] = React.useState('');
   const [editCode, setEditCode] = React.useState('');
   const [editDescription, setEditDescription] = React.useState('');
@@ -93,7 +129,7 @@ export function ProjectsPage() {
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !code.trim()) {
-      toast.error('Project Name and Code required');
+      toast.error('Project Name and Key required');
       return;
     }
 
@@ -123,7 +159,7 @@ export function ProjectsPage() {
     e.preventDefault();
     if (!editingProject) return;
     if (!editName.trim() || !editCode.trim()) {
-      toast.error('Project Name and Code required');
+      toast.error('Project Name and Key required');
       return;
     }
 
@@ -142,7 +178,6 @@ export function ProjectsPage() {
 
     updateProject(editingProject.id, updates);
 
-    // Also update selectedProject if currently viewing
     if (selectedProject && selectedProject.id === editingProject.id) {
       setSelectedProject({ ...selectedProject, ...updates });
     }
@@ -164,210 +199,342 @@ export function ProjectsPage() {
     setEditingProject(null);
   };
 
+  const handleQuickCreateTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProject || !quickTaskTitle.trim()) {
+      toast.error('Task summary is required');
+      return;
+    }
+
+    createTask({
+      project_id: selectedProject.id,
+      title: quickTaskTitle.trim(),
+      description: quickTaskDesc.trim(),
+      status: quickTaskStatus,
+      priority: quickTaskPriority,
+      assignee_id: quickTaskAssignee || currentUser.id,
+      reporter_id: currentUser.id,
+      estimated_hours: 4,
+      actual_hours: 0,
+      tags: [],
+    });
+
+    toast.success(`Issue created in ${selectedProject.code}`);
+    setQuickTaskModalOpen(false);
+    setQuickTaskTitle('');
+    setQuickTaskDesc('');
+  };
+
   // Filter projects
-  const filteredProjects = projects.filter((p) => {
-    const q = searchQuery.toLowerCase().trim();
-    const matchSearch =
-      !q ||
-      p.name.toLowerCase().includes(q) ||
-      p.code.toLowerCase().includes(q) ||
-      (p.client_name && p.client_name.toLowerCase().includes(q)) ||
-      (p.description && p.description.toLowerCase().includes(q));
+  const filteredProjects = React.useMemo(() => {
+    return projects.filter((p) => {
+      const q = searchQuery.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        p.code.toLowerCase().includes(q) ||
+        (p.client_name && p.client_name.toLowerCase().includes(q)) ||
+        (p.description && p.description.toLowerCase().includes(q));
 
-    const matchStatus = statusFilter === 'all' || p.status === statusFilter;
-    const matchPriority = priorityFilter === 'all' || p.priority === priorityFilter;
+      const matchStatus = statusFilter === 'all' || p.status === statusFilter;
+      const matchPriority = priorityFilter === 'all' || p.priority === priorityFilter;
+      const matchLead = !myProjectsOnly || p.manager_id === currentUser.id;
 
-    return matchSearch && matchStatus && matchPriority;
-  });
+      return matchSearch && matchStatus && matchPriority && matchLead;
+    });
+  }, [projects, searchQuery, statusFilter, priorityFilter, myProjectsOnly, currentUser.id]);
+
+  // Project task counts
+  const totalTasksCount = tasks.length;
+  const activeProjectsCount = projects.filter((p) => p.status === 'active').length;
+  const planningProjectsCount = projects.filter((p) => p.status === 'planning').length;
+
+  const STATUS_COLUMNS: { id: ProjectStatus; label: string; color: string; bg: string }[] = [
+    { id: 'planning', label: 'Planning & Backlog', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
+    { id: 'active', label: 'Active Sprints / In Flight', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
+    { id: 'on_hold', label: 'On Hold / Blocked', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
+    { id: 'completed', label: 'Completed / Shipped', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+  ];
+
+  const TASK_STATUS_COLUMNS: { id: TaskStatus; label: string; color: string }[] = [
+    { id: 'todo', label: 'TO DO', color: 'border-slate-600/40 text-slate-300' },
+    { id: 'in_progress', label: 'IN PROGRESS', color: 'border-blue-500/40 text-blue-400' },
+    { id: 'review', label: 'IN REVIEW', color: 'border-amber-500/40 text-amber-400' },
+    { id: 'done', label: 'DONE', color: 'border-emerald-500/40 text-emerald-400' },
+  ];
+
+  // Helper for Project Key avatar color
+  const getProjectKeyColor = (code: string) => {
+    const colors = [
+      'bg-blue-600/20 text-blue-400 border-blue-500/30',
+      'bg-indigo-600/20 text-indigo-400 border-indigo-500/30',
+      'bg-cyan-600/20 text-cyan-400 border-cyan-500/30',
+      'bg-purple-600/20 text-purple-400 border-purple-500/30',
+      'bg-emerald-600/20 text-emerald-400 border-emerald-500/30',
+    ];
+    let hash = 0;
+    for (let i = 0; i < code.length; i++) hash = code.charCodeAt(i) + ((hash << 5) - hash);
+    return colors[Math.abs(hash) % colors.length];
+  };
 
   return (
     <div className="space-y-4">
-      {/* Header Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1b202c] pb-3">
+      {/* Jira Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1b202c] pb-3.5">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-base font-bold text-white tracking-tight font-mono">
-              PROJECT WORKSPACES
-            </h1>
-            {isSuperAdmin && (
-              <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-full">
-                <Sparkles className="h-2.5 w-2.5" />
-                Super Admin Access
-              </span>
-            )}
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-lg bg-blue-600/15 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-sm">
+              <FolderKanban className="h-4 w-4" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold text-white tracking-tight font-mono flex items-center gap-2">
+                PROJECT WORKSPACES
+                {isSuperAdmin && (
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-full">
+                    Super Admin
+                  </span>
+                )}
+              </h1>
+            </div>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            {isSuperAdmin
-              ? 'Unrestricted access to list, view, create, edit, reassign, and manage all company projects & budgets.'
-              : 'Client deliverables, team allocations, milestones, and project budgets.'}
+            Jira-style agile project boards, squad allocations, sprint tracking, and deliverables.
           </p>
         </div>
 
-        {isManagerOrAdmin && (
-          <Button
-            size="sm"
-            onClick={() => {
-              setManagerId(currentUser.id);
-              setCreateModalOpen(true);
-            }}
-            className="h-7.5 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium gap-1 font-mono rounded-none"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>New Project</span>
-          </Button>
-        )}
-      </div>
-
-      {/* Filters & Search Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-[#0b0e14] p-2.5 border border-[#1b202c]">
-        <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-sm">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search projects by name, code, client..."
-              className="pl-9 h-8 text-xs bg-[#10141e] border-[#1f2637] rounded-full"
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 text-xs font-mono">
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-slate-400 uppercase">Status:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-7 bg-[#10141e] border border-[#1f2637] px-2 text-xs text-slate-200 rounded-none focus:outline-none"
-            >
-              <option value="all">All ({projects.length})</option>
-              <option value="active">Active</option>
-              <option value="planning">Planning</option>
-              <option value="on_hold">On Hold</option>
-              <option value="completed">Completed</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-slate-400 uppercase">Priority:</span>
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="h-7 bg-[#10141e] border border-[#1f2637] px-2 text-xs text-slate-200 rounded-none focus:outline-none"
-            >
-              <option value="all">All Priorities</option>
-              <option value="urgent">Urgent</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Projects Grid */}
-      {filteredProjects.length === 0 ? (
-        <div className="desktop-panel p-12 text-center flex flex-col items-center justify-center space-y-3">
-          <div className="h-10 w-10 bg-[#141824] border border-[#232a3a] flex items-center justify-center text-slate-500">
-            <FolderKanban className="h-5 w-5" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-white font-mono">NO PROJECTS FOUND</h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {searchQuery || statusFilter !== 'all' || priorityFilter !== 'all'
-                ? 'No projects matching your search filter.'
-                : 'Create your first client or internal deliverable workspace.'}
-            </p>
-          </div>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           {isManagerOrAdmin && (
             <Button
               size="sm"
-              onClick={() => setCreateModalOpen(true)}
-              className="h-7 text-xs bg-blue-600 gap-1 font-mono rounded-none"
+              onClick={() => {
+                setManagerId(currentUser.id);
+                setCreateModalOpen(true);
+              }}
+              className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-3.5 rounded-full gap-1.5 shadow-sm font-mono"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Create Project</span>
             </Button>
           )}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filteredProjects.map((proj) => {
-            const projTasks = tasks.filter((t) => t.project_id === proj.id);
-            const doneTasks = projTasks.filter((t) => t.status === 'done');
-            const completionPct = projTasks.length > 0 ? Math.round((doneTasks.length / projTasks.length) * 100) : 0;
-            const manager = profiles.find((p) => p.id === proj.manager_id);
-            const prio = getPriorityColor(proj.priority);
-            const stat = getStatusColor(proj.status);
+      </div>
+
+      {/* Jira Filter Toolbar & View Switcher */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-[#0a0d14] p-2.5 rounded-xl border border-[#1b202c]">
+        {/* Left: Search & Quick Filters */}
+        <div className="flex flex-wrap items-center gap-2 flex-1">
+          {/* Search Pill */}
+          <div className="relative min-w-[200px] max-w-xs flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Filter by key, project, client..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-8 bg-[#10141e] border border-[#1f2637] rounded-full pl-9 pr-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500/80 focus:ring-1 focus:ring-blue-500/30 transition-all shadow-inner"
+            />
+          </div>
+
+          {/* Quick Filter: My Projects */}
+          <button
+            onClick={() => setMyProjectsOnly(!myProjectsOnly)}
+            className={`h-8 px-3 rounded-full text-xs font-mono transition-all flex items-center gap-1.5 border ${
+              myProjectsOnly
+                ? 'bg-blue-600/20 text-blue-300 border-blue-500/40 font-semibold'
+                : 'bg-[#10141e] text-slate-400 border-[#1f2637] hover:text-white'
+            }`}
+          >
+            <span>My Projects</span>
+            {myProjectsOnly && <Check className="h-3 w-3" />}
+          </button>
+
+          {/* Status Dropdown Filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-8 bg-[#10141e] border border-[#1f2637] rounded-full px-3 text-xs text-slate-300 focus:outline-none focus:border-blue-500 font-mono"
+          >
+            <option value="all">All Statuses ({projects.length})</option>
+            <option value="active">Active ({activeProjectsCount})</option>
+            <option value="planning">Planning ({planningProjectsCount})</option>
+            <option value="on_hold">On Hold</option>
+            <option value="completed">Completed</option>
+          </select>
+
+          {/* Priority Dropdown Filter */}
+          <select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value)}
+            className="h-8 bg-[#10141e] border border-[#1f2637] rounded-full px-3 text-xs text-slate-300 focus:outline-none focus:border-blue-500 font-mono"
+          >
+            <option value="all">All Priorities</option>
+            <option value="urgent">Urgent</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+
+        {/* Right: View Mode Toggle */}
+        <div className="flex items-center gap-1 bg-[#10141e] p-1 rounded-full border border-[#1f2637] self-start lg:self-auto">
+          <button
+            onClick={() => setViewMode('board')}
+            title="Kanban Board View"
+            className={`px-3 py-1 text-xs font-mono rounded-full transition-all flex items-center gap-1.5 ${
+              viewMode === 'board'
+                ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Kanban className="h-3.5 w-3.5" />
+            <span>Board</span>
+          </button>
+          <button
+            onClick={() => setViewMode('grid')}
+            title="Card Grid View"
+            className={`px-3 py-1 text-xs font-mono rounded-full transition-all flex items-center gap-1.5 ${
+              viewMode === 'grid'
+                ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            <span>Grid</span>
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            title="Spreadsheet List View"
+            className={`px-3 py-1 text-xs font-mono rounded-full transition-all flex items-center gap-1.5 ${
+              viewMode === 'list'
+                ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <List className="h-3.5 w-3.5" />
+            <span>List</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 1. JIRA KANBAN BOARD VIEW */}
+      {/* ========================================================================= */}
+      {viewMode === 'board' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3.5 items-start">
+          {STATUS_COLUMNS.map((col) => {
+            const colProjects = filteredProjects.filter((p) => p.status === col.id);
 
             return (
               <div
-                key={proj.id}
-                onClick={() => setSelectedProject(proj)}
-                className="desktop-panel p-3.5 flex flex-col justify-between cursor-pointer hover:border-blue-500/50 transition-all group relative border border-[#1b202c] bg-[#0c1018]"
+                key={col.id}
+                className="bg-[#0a0d14] rounded-xl border border-[#1b202c] p-3 flex flex-col space-y-3 min-h-[420px]"
               >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="font-mono text-xs font-bold text-blue-400 bg-[#161a24] px-1.5 py-0.2 rounded-none border border-[#212735]">
-                      {proj.code}
+                {/* Column Header */}
+                <div className="flex items-center justify-between pb-2 border-b border-[#161b26]">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-mono font-bold uppercase tracking-wider ${col.color}`}>
+                      {col.label}
                     </span>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`text-[9px] font-mono px-1 py-0.2 rounded-none border uppercase ${prio.bg}`}>
-                        {proj.priority}
-                      </span>
-                      <span className={`text-[9px] font-mono px-1 py-0.2 rounded-none border uppercase ${stat.text} ${stat.border}`}>
-                        {proj.status.replace('_', ' ')}
-                      </span>
-
-                      {/* Quick Edit button for Super Admin / Managers */}
-                      {isManagerOrAdmin && (
-                        <button
-                          type="button"
-                          onClick={(e) => openEditModal(proj, e)}
-                          title="Edit Project"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded"
-                        >
-                          <Edit className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
                   </div>
-
-                  <h3 className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors">
-                    {proj.name}
-                  </h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-2 leading-relaxed">
-                    {proj.description || 'No description provided.'}
-                  </p>
-
-                  {proj.client_name && (
-                    <span className="text-[10px] text-slate-400 font-mono block mt-1.5">
-                      Client: {proj.client_name}
-                    </span>
-                  )}
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-[#121622] text-slate-300 border border-[#1f2637] font-semibold">
+                    {colProjects.length}
+                  </span>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-[#1b202c] space-y-2">
-                  <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
-                    <span>Progress</span>
-                    <span className="text-slate-200">
-                      {doneTasks.length}/{projTasks.length} ({completionPct}%)
-                    </span>
-                  </div>
-                  <Progress value={completionPct} indicatorColor="bg-blue-500" className="h-1 rounded-none" />
-
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 font-mono">
-                    <div className="flex items-center gap-1.5" title={`Manager: ${manager?.full_name || 'Unassigned'}`}>
-                      <UserAvatar
-                        name={manager?.full_name || 'Lead'}
-                        avatarUrl={manager?.avatar_url}
-                        size="sm"
-                        className="h-4 w-4 text-[8px]"
-                      />
-                      <span>{manager?.full_name || 'Unassigned'}</span>
+                {/* Column Cards */}
+                <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[calc(100vh-280px)] pr-0.5">
+                  {colProjects.length === 0 ? (
+                    <div className="py-12 text-center text-slate-500 text-xs font-mono border border-dashed border-[#1a1f2c] rounded-lg">
+                      No projects in {col.label.toLowerCase()}
                     </div>
-                    <span>{proj.due_date ? formatDate(proj.due_date, 'dd MMM yyyy') : 'Ongoing'}</span>
-                  </div>
+                  ) : (
+                    colProjects.map((proj) => {
+                      const projTasks = tasks.filter((t) => t.project_id === proj.id);
+                      const doneTasks = projTasks.filter((t) => t.status === 'done');
+                      const inProgressTasks = projTasks.filter((t) => t.status === 'in_progress');
+                      const completionPct = projTasks.length > 0 ? Math.round((doneTasks.length / projTasks.length) * 100) : 0;
+                      const manager = profiles.find((p) => p.id === proj.manager_id);
+                      const prio = getPriorityColor(proj.priority);
+                      const keyColor = getProjectKeyColor(proj.code);
+
+                      return (
+                        <div
+                          key={proj.id}
+                          onClick={() => setSelectedProject(proj)}
+                          className="bg-[#0f131d] hover:bg-[#131824] rounded-xl p-3.5 border border-[#1e2536] hover:border-blue-500/50 transition-all cursor-pointer shadow-sm group space-y-3"
+                        >
+                          {/* Top: Key + Priority + Quick Edit */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full border ${keyColor}`}>
+                              {proj.code}
+                            </span>
+
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full border uppercase font-bold ${prio.bg}`}>
+                                {proj.priority}
+                              </span>
+
+                              {isManagerOrAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => openEditModal(proj, e)}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-full"
+                                  title="Edit Project"
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Title & Description */}
+                          <div>
+                            <h3 className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors line-clamp-1">
+                              {proj.name}
+                            </h3>
+                            {proj.description && (
+                              <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-2 leading-relaxed">
+                                {proj.description}
+                              </p>
+                            )}
+                            {proj.client_name && (
+                              <span className="text-[10px] font-mono text-slate-400 mt-1 block">
+                                Client: <strong className="text-slate-300">{proj.client_name}</strong>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Progress Bar & Issue Counters */}
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                              <span>Issues Progress</span>
+                              <span className="text-slate-200 font-bold">{doneTasks.length}/{projTasks.length} ({completionPct}%)</span>
+                            </div>
+                            <Progress value={completionPct} indicatorColor="bg-blue-500" className="h-1.5 rounded-full bg-[#161c28]" />
+                          </div>
+
+                          {/* Footer: Manager circular avatar + Due date */}
+                          <div className="flex items-center justify-between pt-2 border-t border-[#181d2a] text-[10px] font-mono text-slate-400">
+                            <div className="flex items-center gap-1.5 min-w-0" title={`Lead: ${manager?.full_name || 'Unassigned'}`}>
+                              <UserAvatar
+                                name={manager?.full_name || 'Lead'}
+                                avatarUrl={manager?.avatar_url}
+                                size="sm"
+                                className="h-5 w-5 text-[8px] rounded-full border border-blue-500/30"
+                              />
+                              <span className="truncate max-w-[100px] text-slate-300 font-medium">
+                                {manager?.full_name?.split(' ')[0] || 'Unassigned'}
+                              </span>
+                            </div>
+
+                            <span className="text-slate-400">
+                              {proj.due_date ? formatDate(proj.due_date, 'dd MMM') : 'Ongoing'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             );
@@ -375,334 +542,704 @@ export function ProjectsPage() {
         </div>
       )}
 
-      {/* ===================================================================== */}
-      {/* Project Detail Modal */}
-      {/* ===================================================================== */}
-      {selectedProject && (
-        <Dialog open={Boolean(selectedProject)} onOpenChange={() => setSelectedProject(null)}>
-          <DialogContent className="max-w-2xl bg-[#0e1118] border-[#1f2533] p-5">
-            <DialogHeader className="border-b border-[#1b202c] pb-3">
-              <div className="flex items-center gap-2">
-                <span className="bg-[#181d28] px-2 py-0.5 font-mono text-xs font-bold text-blue-400 border border-[#252c3c]">
-                  {selectedProject.code}
-                </span>
-                <span className={`px-1.5 py-0.5 font-mono text-[9px] border uppercase ${getPriorityColor(selectedProject.priority).bg}`}>
-                  {selectedProject.priority}
-                </span>
-                <span className={`px-1.5 py-0.5 font-mono text-[9px] border uppercase ${getStatusColor(selectedProject.status).text} ${getStatusColor(selectedProject.status).border}`}>
-                  {selectedProject.status.replace('_', ' ')}
-                </span>
-              </div>
-              <DialogTitle className="text-base font-bold text-white font-mono mt-1">
-                {selectedProject.name}
-              </DialogTitle>
-              {selectedProject.client_name && (
-                <span className="text-[11px] text-slate-400 font-mono">
-                  Client: <strong className="text-slate-200">{selectedProject.client_name}</strong>
-                </span>
-              )}
-            </DialogHeader>
+      {/* ========================================================================= */}
+      {/* 2. JIRA GRID / CARDS VIEW */}
+      {/* ========================================================================= */}
+      {viewMode === 'grid' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          {filteredProjects.length === 0 ? (
+            <div className="col-span-full py-16 text-center text-slate-500 font-mono text-xs bg-[#0a0d14] rounded-xl border border-[#1b202c]">
+              No projects match your filter.
+            </div>
+          ) : (
+            filteredProjects.map((proj) => {
+              const projTasks = tasks.filter((t) => t.project_id === proj.id);
+              const doneTasks = projTasks.filter((t) => t.status === 'done');
+              const completionPct = projTasks.length > 0 ? Math.round((doneTasks.length / projTasks.length) * 100) : 0;
+              const manager = profiles.find((p) => p.id === proj.manager_id);
+              const prio = getPriorityColor(proj.priority);
+              const stat = getStatusColor(proj.status);
+              const keyColor = getProjectKeyColor(proj.code);
 
-            <div className="space-y-3.5 pt-2 text-xs">
-              {/* Description */}
-              <div>
-                <span className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
-                  Scope & Objectives
-                </span>
-                <p className="bg-[#0b0e14] p-3 border border-[#1b202c] text-slate-300 leading-relaxed text-[11px] whitespace-pre-wrap">
-                  {selectedProject.description || 'No detailed scope description provided.'}
-                </p>
-              </div>
+              return (
+                <div
+                  key={proj.id}
+                  onClick={() => setSelectedProject(proj)}
+                  className="bg-[#0a0d14] hover:bg-[#0e121b] rounded-xl p-4 border border-[#1b202c] hover:border-blue-500/50 transition-all cursor-pointer group flex flex-col justify-between space-y-3.5"
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`font-mono text-xs font-bold px-2.5 py-0.5 rounded-full border ${keyColor}`}>
+                        {proj.code}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border uppercase font-bold ${prio.bg}`}>
+                          {proj.priority}
+                        </span>
+                        <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border uppercase font-bold ${stat.text} ${stat.border}`}>
+                          {proj.status.replace('_', ' ')}
+                        </span>
+                        {isManagerOrAdmin && (
+                          <button
+                            type="button"
+                            onClick={(e) => openEditModal(proj, e)}
+                            className="p-1 text-slate-400 hover:text-white rounded-full hover:bg-slate-800 transition-colors ml-1"
+                          >
+                            <Edit2 className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
 
-              {/* Metrics Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-[#0b0e14] p-2.5 border border-[#1b202c] font-mono text-[10px]">
-                <div>
-                  <span className="text-slate-500 block uppercase">Project Lead</span>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <UserAvatar
-                      name={profiles.find((p) => p.id === selectedProject.manager_id)?.full_name || 'Lead'}
-                      size="sm"
-                      className="h-4 w-4 text-[8px]"
-                    />
-                    <span className="text-slate-200 font-semibold truncate">
-                      {profiles.find((p) => p.id === selectedProject.manager_id)?.full_name || 'Unassigned'}
-                    </span>
+                    <div>
+                      <h3 className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors">
+                        {proj.name}
+                      </h3>
+                      {proj.description && (
+                        <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                          {proj.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2.5 pt-2 border-t border-[#161b26]">
+                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                      <span>Sprint Completion</span>
+                      <span className="text-white font-bold">{doneTasks.length}/{projTasks.length} ({completionPct}%)</span>
+                    </div>
+                    <Progress value={completionPct} indicatorColor="bg-blue-500" className="h-1.5 rounded-full bg-[#161c28]" />
+
+                    <div className="flex items-center justify-between text-xs font-mono pt-1 text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <UserAvatar
+                          name={manager?.full_name || 'Lead'}
+                          avatarUrl={manager?.avatar_url}
+                          size="sm"
+                          className="h-5.5 w-5.5 text-[9px] rounded-full border border-blue-500/30"
+                        />
+                        <span className="text-slate-300 font-medium">{manager?.full_name || 'Unassigned'}</span>
+                      </div>
+                      <span>{proj.due_date ? formatDate(proj.due_date, 'dd MMM yyyy') : 'Ongoing'}</span>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <span className="text-slate-500 block uppercase">Start Date</span>
-                  <span className="text-slate-200 font-semibold block mt-1">
-                    {formatDate(selectedProject.start_date)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block uppercase">Due Date</span>
-                  <span className="text-slate-200 font-semibold block mt-1">
-                    {formatDate(selectedProject.due_date)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block uppercase">Budget (Optional)</span>
-                  <span className="text-emerald-400 font-bold block mt-1 font-mono">
-                    {selectedProject.budget && selectedProject.budget > 0 ? formatRupees(selectedProject.budget) : '—'}
-                  </span>
-                </div>
-              </div>
+              );
+            })
+          )}
+        </div>
+      )}
 
-              {/* Tasks in Project */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-mono uppercase text-slate-400">
-                    Allocated Tasks ({tasks.filter((t) => t.project_id === selectedProject.id).length})
-                  </span>
-                  {isManagerOrAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => setTaskModalOpen(true)}
-                      className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 font-mono"
+      {/* ========================================================================= */}
+      {/* 3. JIRA SPREADSHEET / LIST VIEW */}
+      {/* ========================================================================= */}
+      {viewMode === 'list' && (
+        <div className="bg-[#0a0d14] rounded-xl border border-[#1b202c] overflow-hidden">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#0e121a] border-b border-[#1b202c] font-mono text-[10px] uppercase text-slate-400">
+              <tr>
+                <th className="py-2.5 px-3">Key</th>
+                <th className="py-2.5 px-3">Project Name</th>
+                <th className="py-2.5 px-3">Project Lead</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3">Priority</th>
+                <th className="py-2.5 px-3">Issues Progress</th>
+                <th className="py-2.5 px-3">Due Date</th>
+                <th className="py-2.5 px-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#161b26]">
+              {filteredProjects.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8 text-center text-slate-500 font-mono text-xs">
+                    No projects match your filter.
+                  </td>
+                </tr>
+              ) : (
+                filteredProjects.map((proj) => {
+                  const projTasks = tasks.filter((t) => t.project_id === proj.id);
+                  const doneTasks = projTasks.filter((t) => t.status === 'done');
+                  const completionPct = projTasks.length > 0 ? Math.round((doneTasks.length / projTasks.length) * 100) : 0;
+                  const manager = profiles.find((p) => p.id === proj.manager_id);
+                  const prio = getPriorityColor(proj.priority);
+                  const stat = getStatusColor(proj.status);
+                  const keyColor = getProjectKeyColor(proj.code);
+
+                  return (
+                    <tr
+                      key={proj.id}
+                      onClick={() => setSelectedProject(proj)}
+                      className="hover:bg-[#0e121b] cursor-pointer transition-colors text-slate-300"
                     >
-                      <Plus className="h-3 w-3" />
-                      <span>Add Task</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {tasks.filter((t) => t.project_id === selectedProject.id).length === 0 ? (
-                    <div className="p-4 text-center text-slate-500 bg-[#0b0e14] border border-[#1b202c] text-xs font-mono">
-                      No tasks allocated to this project yet.
-                    </div>
-                  ) : (
-                    tasks
-                      .filter((t) => t.project_id === selectedProject.id)
-                      .map((t) => (
-                        <div
-                          key={t.id}
-                          className="flex items-center justify-between p-2 bg-[#0b0e14] border border-[#1b202c] text-xs"
-                        >
-                          <div className="flex items-center gap-2 truncate pr-2">
-                            <span
-                              className={`h-2 w-2 shrink-0 ${
-                                t.status === 'done'
-                                  ? 'bg-emerald-400'
-                                  : t.status === 'in_progress'
-                                  ? 'bg-blue-400'
-                                  : 'bg-slate-500'
-                              }`}
-                            />
-                            <span className="text-slate-200 truncate">{t.title}</span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0 font-mono text-[9px]">
-                            <span className="uppercase text-slate-400 bg-[#141822] px-1.5 py-0.2 border border-[#212735]">
-                              {t.status.replace('_', ' ')}
-                            </span>
-                          </div>
+                      <td className="py-2.5 px-3">
+                        <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full border ${keyColor}`}>
+                          {proj.code}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="font-bold text-white block">{proj.name}</span>
+                        {proj.client_name && (
+                          <span className="text-[10px] text-slate-400 font-mono">Client: {proj.client_name}</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <UserAvatar
+                            name={manager?.full_name || 'Lead'}
+                            avatarUrl={manager?.avatar_url}
+                            size="sm"
+                            className="h-5 w-5 text-[8px] rounded-full"
+                          />
+                          <span className="text-slate-200 font-medium">{manager?.full_name || 'Unassigned'}</span>
                         </div>
-                      ))
-                  )}
-                </div>
-              </div>
-            </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border uppercase font-bold ${stat.text} ${stat.border}`}>
+                          {proj.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border uppercase font-bold ${prio.bg}`}>
+                          {proj.priority}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 min-w-[140px]">
+                        <div className="space-y-1 font-mono text-[10px]">
+                          <div className="flex justify-between text-slate-400">
+                            <span>{doneTasks.length}/{projTasks.length}</span>
+                            <span>{completionPct}%</span>
+                          </div>
+                          <Progress value={completionPct} indicatorColor="bg-blue-500" className="h-1 rounded-full bg-[#161c28]" />
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-slate-400">
+                        {proj.due_date ? formatDate(proj.due_date, 'dd MMM yyyy') : 'Ongoing'}
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedProject(proj);
+                          }}
+                          className="h-6 text-[10px] font-mono border-[#1f2637] bg-[#10141e] text-blue-400 hover:text-white rounded-full"
+                        >
+                          Open Board
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-            <DialogFooter className="pt-3 border-t border-[#1b202c] flex items-center justify-between sm:justify-between w-full">
+      {/* ========================================================================= */}
+      {/* 4. JIRA PROJECT WORKSPACE / SPRINT BOARD MODAL */}
+      {/* ========================================================================= */}
+      {selectedProject && (
+        <Dialog open={Boolean(selectedProject)} onOpenChange={() => setSelectedProject(null)}>
+          <DialogContent className="max-w-5xl bg-[#0a0d14] border border-[#21262d] p-5 shadow-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
+            {/* Jira Project Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-[#21262d]">
               <div>
-                {isManagerOrAdmin && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setEditingProject(selectedProject);
-                      setDeleteConfirmOpen(true);
-                    }}
-                    className="h-7 text-xs gap-1 border-rose-500/30 bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-400 font-mono"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span>Delete</span>
-                  </Button>
+                <div className="flex items-center gap-2">
+                  <span className={`font-mono text-xs font-bold px-2.5 py-0.5 rounded-full border ${getProjectKeyColor(selectedProject.code)}`}>
+                    {selectedProject.code}
+                  </span>
+                  <span className={`px-2 py-0.5 font-mono text-[9px] rounded-full border uppercase font-bold ${getPriorityColor(selectedProject.priority).bg}`}>
+                    {selectedProject.priority}
+                  </span>
+                  <span className={`px-2 py-0.5 font-mono text-[9px] rounded-full border uppercase font-bold ${getStatusColor(selectedProject.status).text} ${getStatusColor(selectedProject.status).border}`}>
+                    {selectedProject.status.replace('_', ' ')}
+                  </span>
+                </div>
+                <DialogTitle className="text-lg font-bold text-white font-mono mt-1.5">
+                  {selectedProject.name}
+                </DialogTitle>
+                {selectedProject.client_name && (
+                  <p className="text-xs text-slate-400 font-mono mt-0.5">
+                    Client: <strong className="text-slate-200">{selectedProject.client_name}</strong>
+                  </p>
                 )}
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setQuickTaskStatus('todo');
+                    setQuickTaskPriority('medium');
+                    setQuickTaskAssignee(currentUser.id);
+                    setQuickTaskModalOpen(true);
+                  }}
+                  className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-3 rounded-full gap-1 shadow-sm font-mono"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Create Issue</span>
+                </Button>
+
                 {isManagerOrAdmin && (
                   <Button
-                    type="button"
                     size="sm"
                     variant="outline"
                     onClick={() => openEditModal(selectedProject)}
-                    className="h-7 text-xs gap-1 border-[#2a3449] bg-[#141924] hover:bg-[#1c2333] text-slate-200 font-mono"
+                    className="h-8 text-xs border-[#30363d] bg-[#161b22] hover:bg-[#21262d] text-slate-300 rounded-full font-mono gap-1"
                   >
-                    <Edit className="h-3.5 w-3.5" />
-                    <span>Edit Project</span>
+                    <Edit2 className="h-3 w-3" />
+                    <span>Edit</span>
                   </Button>
                 )}
+              </div>
+            </div>
+
+            {/* Jira Tabs */}
+            <div className="flex items-center gap-1.5 pt-2 border-b border-[#1b202c]">
+              <button
+                onClick={() => setProjectTab('tasks_board')}
+                className={`px-3 py-1.5 text-xs font-mono border-b-2 transition-all flex items-center gap-1.5 ${
+                  projectTab === 'tasks_board'
+                    ? 'border-blue-500 text-blue-400 font-bold'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Kanban className="h-3.5 w-3.5" />
+                <span>Sprint Board</span>
+              </button>
+              <button
+                onClick={() => setProjectTab('tasks_list')}
+                className={`px-3 py-1.5 text-xs font-mono border-b-2 transition-all flex items-center gap-1.5 ${
+                  projectTab === 'tasks_list'
+                    ? 'border-blue-500 text-blue-400 font-bold'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <List className="h-3.5 w-3.5" />
+                <span>Backlog & Issues ({tasks.filter((t) => t.project_id === selectedProject.id).length})</span>
+              </button>
+              <button
+                onClick={() => setProjectTab('overview')}
+                className={`px-3 py-1.5 text-xs font-mono border-b-2 transition-all flex items-center gap-1.5 ${
+                  projectTab === 'overview'
+                    ? 'border-blue-500 text-blue-400 font-bold'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Layers className="h-3.5 w-3.5" />
+                <span>Overview & Scope</span>
+              </button>
+            </div>
+
+            {/* TAB CONTENT: Sprint Board */}
+            {projectTab === 'tasks_board' && (
+              <div className="pt-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-start">
+                  {TASK_STATUS_COLUMNS.map((col) => {
+                    const colTasks = tasks.filter(
+                      (t) => t.project_id === selectedProject.id && t.status === col.id
+                    );
+
+                    return (
+                      <div
+                        key={col.id}
+                        className="bg-[#0e121a] rounded-xl border border-[#1b202c] p-2.5 space-y-2 min-h-[300px] flex flex-col"
+                      >
+                        {/* Header */}
+                        <div className="flex items-center justify-between pb-1.5 border-b border-[#161b26]">
+                          <span className={`text-[11px] font-mono font-bold ${col.color}`}>
+                            {col.label}
+                          </span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#161c28] text-slate-400 font-bold">
+                            {colTasks.length}
+                          </span>
+                        </div>
+
+                        {/* Task Cards */}
+                        <div className="space-y-2 flex-1 overflow-y-auto max-h-[360px]">
+                          {colTasks.length === 0 ? (
+                            <div className="py-8 text-center text-slate-600 text-[11px] font-mono">
+                              No issues
+                            </div>
+                          ) : (
+                            colTasks.map((task) => {
+                              const assignee = profiles.find((p) => p.id === task.assignee_id);
+                              const prio = getPriorityColor(task.priority);
+
+                              return (
+                                <div
+                                  key={task.id}
+                                  className="bg-[#121622] hover:bg-[#161b2a] rounded-lg p-2.5 border border-[#1f2638] space-y-2 transition-all shadow-sm group"
+                                >
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="text-[9px] font-mono text-blue-400 font-bold">
+                                      {selectedProject.code}-{task.id.slice(0, 4)}
+                                    </span>
+                                    <span className={`text-[8px] font-mono px-1.5 py-0.2 rounded-full border uppercase ${prio.bg}`}>
+                                      {task.priority}
+                                    </span>
+                                  </div>
+
+                                  <p className="text-xs font-semibold text-slate-100 leading-snug line-clamp-2">
+                                    {task.title}
+                                  </p>
+
+                                  <div className="flex items-center justify-between pt-1 border-t border-[#1a2130] text-[10px] font-mono text-slate-400">
+                                    <div className="flex items-center gap-1.5">
+                                      <UserAvatar
+                                        name={assignee?.full_name || 'Member'}
+                                        avatarUrl={assignee?.avatar_url}
+                                        size="sm"
+                                        className="h-4.5 w-4.5 text-[8px] rounded-full"
+                                      />
+                                      <span className="truncate max-w-[80px]">{assignee?.full_name?.split(' ')[0] || 'Unassigned'}</span>
+                                    </div>
+
+                                    {/* Quick move status dropdown */}
+                                    <select
+                                      value={task.status}
+                                      onChange={(e) => updateTaskStatus(task.id, e.target.value as TaskStatus)}
+                                      className="bg-[#0a0d14] border border-[#1f2637] rounded px-1 text-[9px] font-mono text-slate-300 focus:outline-none"
+                                    >
+                                      <option value="todo">TO DO</option>
+                                      <option value="in_progress">IN PROGRESS</option>
+                                      <option value="review">REVIEW</option>
+                                      <option value="done">DONE</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: Backlog & Tasks List */}
+            {projectTab === 'tasks_list' && (
+              <div className="pt-3 space-y-2">
+                <div className="bg-[#0e121a] rounded-xl border border-[#1b202c] overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#121622] border-b border-[#1b202c] font-mono text-[10px] uppercase text-slate-400">
+                      <tr>
+                        <th className="py-2 px-3">Issue Key</th>
+                        <th className="py-2 px-3">Summary</th>
+                        <th className="py-2 px-3">Status</th>
+                        <th className="py-2 px-3">Priority</th>
+                        <th className="py-2 px-3">Assignee</th>
+                        <th className="py-2 px-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#161b26]">
+                      {tasks.filter((t) => t.project_id === selectedProject.id).length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-slate-500 font-mono text-xs">
+                            No issues created for this project yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        tasks
+                          .filter((t) => t.project_id === selectedProject.id)
+                          .map((task) => {
+                            const assignee = profiles.find((p) => p.id === task.assignee_id);
+                            const prio = getPriorityColor(task.priority);
+
+                            return (
+                              <tr key={task.id} className="hover:bg-[#121622] text-slate-300">
+                                <td className="py-2 px-3 font-mono text-[10px] text-blue-400 font-bold">
+                                  {selectedProject.code}-{task.id.slice(0, 4)}
+                                </td>
+                                <td className="py-2 px-3 font-medium text-white max-w-xs truncate">
+                                  {task.title}
+                                </td>
+                                <td className="py-2 px-3">
+                                  <select
+                                    value={task.status}
+                                    onChange={(e) => updateTaskStatus(task.id, e.target.value as TaskStatus)}
+                                    className="bg-[#10141e] border border-[#1f2637] rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-200 focus:outline-none"
+                                  >
+                                    <option value="todo">TO DO</option>
+                                    <option value="in_progress">IN PROGRESS</option>
+                                    <option value="review">IN REVIEW</option>
+                                    <option value="done">DONE</option>
+                                  </select>
+                                </td>
+                                <td className="py-2 px-3">
+                                  <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full border uppercase ${prio.bg}`}>
+                                    {task.priority}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3">
+                                  <div className="flex items-center gap-1.5">
+                                    <UserAvatar
+                                      name={assignee?.full_name || 'Member'}
+                                      avatarUrl={assignee?.avatar_url}
+                                      size="sm"
+                                      className="h-4.5 w-4.5 text-[8px] rounded-full"
+                                    />
+                                    <span className="text-slate-300 font-mono text-[11px]">{assignee?.full_name || 'Unassigned'}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                  <button
+                                    onClick={() => deleteTask(task.id)}
+                                    className="text-slate-500 hover:text-rose-400 p-1 rounded transition-colors"
+                                    title="Delete Issue"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: Overview & Scope */}
+            {projectTab === 'overview' && (
+              <div className="pt-3 space-y-3 text-xs">
+                {/* Metrics Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[#0e121a] p-3 rounded-xl border border-[#1b202c] font-mono text-[11px]">
+                  <div>
+                    <span className="text-slate-400 uppercase text-[10px] block">Project Lead</span>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <UserAvatar
+                        name={profiles.find((p) => p.id === selectedProject.manager_id)?.full_name || 'Lead'}
+                        size="sm"
+                        className="h-5 w-5 text-[8px] rounded-full"
+                      />
+                      <span className="text-slate-200 font-semibold truncate">
+                        {profiles.find((p) => p.id === selectedProject.manager_id)?.full_name || 'Unassigned'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 uppercase text-[10px] block">Start Date</span>
+                    <span className="text-slate-200 font-semibold block mt-1">
+                      {formatDate(selectedProject.start_date)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 uppercase text-[10px] block">Target Delivery</span>
+                    <span className="text-slate-200 font-semibold block mt-1">
+                      {formatDate(selectedProject.due_date)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 uppercase text-[10px] block">Budget (Optional)</span>
+                    <span className="text-emerald-400 font-bold block mt-1 font-mono">
+                      {selectedProject.budget && selectedProject.budget > 0 ? formatRupees(selectedProject.budget) : '—'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Scope & Objectives */}
+                <div>
+                  <span className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                    Scope & Technical Deliverables
+                  </span>
+                  <p className="bg-[#0e121a] p-3 rounded-xl border border-[#1b202c] text-slate-300 leading-relaxed text-xs whitespace-pre-wrap font-sans">
+                    {selectedProject.description || 'No detailed scope description provided.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Footer */}
+            <DialogFooter className="pt-3 border-t border-[#21262d] flex items-center justify-between sm:justify-between w-full">
+              {isManagerOrAdmin && (
                 <Button
                   type="button"
-                  variant="outline"
                   size="sm"
-                  onClick={() => setSelectedProject(null)}
-                  className="h-7 text-xs border-[#232b3c] bg-[#121620] font-mono text-slate-200"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingProject(selectedProject);
+                    setDeleteConfirmOpen(true);
+                  }}
+                  className="h-8 text-xs gap-1 border-rose-500/30 bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-400 font-mono rounded-full"
                 >
-                  Close
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Delete Project</span>
                 </Button>
-              </div>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedProject(null)}
+                className="h-8 text-xs border-[#30363d] bg-[#161b22] text-slate-300 hover:bg-[#21262d] rounded-full font-mono"
+              >
+                Close Workspace
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      {/* ===================================================================== */}
-      {/* Create Project Modal */}
-      {/* ===================================================================== */}
+      {/* ========================================================================= */}
+      {/* 5. CREATE PROJECT MODAL */}
+      {/* ========================================================================= */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <DialogContent className="max-w-md bg-[#0e1118] border-[#1f2533] p-5">
-          <DialogHeader>
-            <DialogTitle className="text-base text-white font-mono font-bold">
-              Create Project Workspace
-            </DialogTitle>
-          </DialogHeader>
+        <DialogContent className="max-w-lg bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-2xl">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-[#21262d]">
+            <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+              <FolderKanban className="h-4 w-4" />
+            </div>
+            <div>
+              <DialogTitle className="text-sm font-semibold text-white font-mono">
+                Create Project Workspace
+              </DialogTitle>
+              <p className="text-[11px] text-slate-400">
+                Setup a new deliverable workspace with Jira key and sprint tracking
+              </p>
+            </div>
+          </div>
+
           <form onSubmit={handleCreateSubmit} className="space-y-3 pt-2 text-xs">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">
-                <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
-                  Project Name *
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Project Name <span className="text-rose-400">*</span>
                 </label>
                 <Input
+                  placeholder="e.g. Core Banking API"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Enterprise Cloud Migration"
-                  className="h-7 bg-[#0b0e14] border-[#1b202c]"
+                  className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
                   required
                 />
               </div>
+
               <div>
-                <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
-                  Code *
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Project Key <span className="text-rose-400">*</span>
                 </label>
                 <Input
+                  placeholder="e.g. PRJ"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  placeholder="ECM-01"
-                  className="h-7 bg-[#0b0e14] border-[#1b202c] font-mono uppercase"
+                  className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg uppercase font-mono"
                   required
                 />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
-                  Client / Entity
-                </label>
-                <Input
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  placeholder="e.g. Internal / Client Corp"
-                  className="h-7 bg-[#0b0e14] border-[#1b202c]"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
-                  Project Lead (Any Team Member)
-                </label>
-                <select
-                  value={managerId}
-                  onChange={(e) => setManagerId(e.target.value)}
-                  className="h-7 w-full border border-[#1b202c] bg-[#0b0e14] px-2 text-xs text-white font-mono rounded-none"
-                >
-                  {profiles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.full_name} ({p.designation_title || p.role.replace('_', ' ')})
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
 
             <div>
-              <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
-                Description & Scope
+              <label className="text-xs font-medium text-slate-200 block mb-1">
+                Client / Organization (Optional)
               </label>
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                placeholder="High-level milestones, deliverables, tech stack..."
-                className="bg-[#0b0e14] border-[#1b202c] text-xs"
+              <Input
+                placeholder="e.g. HDFC Bank Ltd"
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Priority</label>
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as any)}
-                  className="h-7 w-full border border-[#1b202c] bg-[#0b0e14] px-2 text-xs text-white font-mono rounded-none"
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Status</label>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Initial Status
+                </label>
                 <select
                   value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                  className="h-7 w-full border border-[#1b202c] bg-[#0b0e14] px-2 text-xs text-white font-mono rounded-none"
+                  onChange={(e) => setStatus(e.target.value as ProjectStatus)}
+                  className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none"
                 >
-                  <option value="planning">Planning</option>
                   <option value="active">Active</option>
+                  <option value="planning">Planning</option>
                   <option value="on_hold">On Hold</option>
                   <option value="completed">Completed</option>
                 </select>
               </div>
+
               <div>
-                <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Budget (₹ - Optional)</label>
-                <Input
-                  type="number"
-                  placeholder="Optional"
-                  value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
-                  className="h-7 bg-[#0b0e14] border-[#1b202c] font-mono placeholder:text-slate-600"
-                />
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Priority Level
+                </label>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as PriorityLevel)}
+                  className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none"
+                >
+                  <option value="urgent">Urgent</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Start Date</label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="h-7 bg-[#0b0e14] border-[#1b202c]"
-                />
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Project Lead
+                </label>
+                <select
+                  value={managerId}
+                  onChange={(e) => setManagerId(e.target.value)}
+                  className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none"
+                >
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.full_name} ({p.role})
+                    </option>
+                  ))}
+                </select>
               </div>
+
               <div>
-                <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Target Due Date</label>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Target Due Date
+                </label>
                 <Input
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="h-7 bg-[#0b0e14] border-[#1b202c]"
+                  className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
                 />
               </div>
             </div>
 
-            <DialogFooter className="pt-2">
+            <div>
+              <label className="text-xs font-medium text-slate-200 block mb-1">
+                Project Scope & Deliverables
+              </label>
+              <Textarea
+                placeholder="High-level architecture and scope description..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                className="bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
+              />
+            </div>
+
+            <DialogFooter className="pt-3 border-t border-[#21262d] flex items-center justify-between sm:justify-between w-full">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setCreateModalOpen(false)}
-                className="h-7 text-xs border-[#232b3c] bg-[#121620]"
+                className="h-8 text-xs border-[#30363d] bg-[#161b22] text-slate-300 hover:bg-[#21262d] rounded-full"
               >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-500 font-mono">
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 rounded-full shadow-sm"
+              >
                 Create Project
               </Button>
             </DialogFooter>
@@ -710,199 +1247,320 @@ export function ProjectsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ===================================================================== */}
-      {/* Edit Project Modal (Super Admin / Manager) */}
-      {/* ===================================================================== */}
-      {editingProject && (
-        <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-          <DialogContent className="max-w-md bg-[#0e1118] border-[#1f2533] p-5">
-            <DialogHeader className="border-b border-[#1b202c] pb-2.5">
-              <div className="flex items-center justify-between">
-                <DialogTitle className="text-base text-white font-mono font-bold flex items-center gap-1.5">
-                  <Edit className="h-4 w-4 text-blue-400" />
-                  <span>Edit Project Workspace</span>
-                </DialogTitle>
-                <span className="bg-[#181d28] px-1.5 py-0.2 font-mono text-[10px] text-blue-400 border border-[#252c3c]">
-                  {editingProject.code}
-                </span>
-              </div>
-            </DialogHeader>
-            <form onSubmit={handleEditSubmit} className="space-y-3 pt-2 text-xs">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
-                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Project Name *</label>
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="h-7 bg-[#0b0e14] border-[#1b202c]"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Code *</label>
-                  <Input
-                    value={editCode}
-                    onChange={(e) => setEditCode(e.target.value)}
-                    className="h-7 bg-[#0b0e14] border-[#1b202c] font-mono uppercase"
-                    required
-                  />
-                </div>
-              </div>
+      {/* ========================================================================= */}
+      {/* 6. EDIT PROJECT MODAL */}
+      {/* ========================================================================= */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="max-w-lg bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-2xl">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-[#21262d]">
+            <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+              <Edit2 className="h-4 w-4" />
+            </div>
+            <div>
+              <DialogTitle className="text-sm font-semibold text-white font-mono">
+                Edit Project Settings
+              </DialogTitle>
+              <p className="text-[11px] text-slate-400">
+                Update status, lead, priority, and project scope
+              </p>
+            </div>
+          </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Client / Entity</label>
-                  <Input
-                    value={editClientName}
-                    onChange={(e) => setEditClientName(e.target.value)}
-                    className="h-7 bg-[#0b0e14] border-[#1b202c]"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
-                    Project Lead (Any Team Member)
-                  </label>
-                  <select
-                    value={editManagerId}
-                    onChange={(e) => setEditManagerId(e.target.value)}
-                    className="h-7 w-full border border-[#1b202c] bg-[#0b0e14] px-2 text-xs text-white font-mono rounded-none"
-                  >
-                    {profiles.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.full_name} ({p.designation_title || p.role.replace('_', ' ')})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Description & Scope</label>
-                <Textarea
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
-                  rows={2}
-                  className="bg-[#0b0e14] border-[#1b202c] text-xs"
+          <form onSubmit={handleEditSubmit} className="space-y-3 pt-2 text-xs">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Project Name <span className="text-rose-400">*</span>
+                </label>
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
+                  required
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Priority</label>
-                  <select
-                    value={editPriority}
-                    onChange={(e) => setEditPriority(e.target.value as any)}
-                    className="h-7 w-full border border-[#1b202c] bg-[#0b0e14] px-2 text-xs text-white font-mono rounded-none"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Status</label>
-                  <select
-                    value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value as any)}
-                    className="h-7 w-full border border-[#1b202c] bg-[#0b0e14] px-2 text-xs text-white font-mono rounded-none"
-                  >
-                    <option value="planning">Planning</option>
-                    <option value="active">Active</option>
-                    <option value="on_hold">On Hold</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Budget (₹ - Optional)</label>
-                  <Input
-                    type="number"
-                    placeholder="Optional"
-                    value={editBudget}
-                    onChange={(e) => setEditBudget(e.target.value)}
-                    className="h-7 bg-[#0b0e14] border-[#1b202c] font-mono placeholder:text-slate-600"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Key <span className="text-rose-400">*</span>
+                </label>
+                <Input
+                  value={editCode}
+                  onChange={(e) => setEditCode(e.target.value)}
+                  className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg uppercase font-mono"
+                  required
+                />
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Start Date</label>
-                  <Input
-                    type="date"
-                    value={editStartDate}
-                    onChange={(e) => setEditStartDate(e.target.value)}
-                    className="h-7 bg-[#0b0e14] border-[#1b202c]"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Due Date</label>
-                  <Input
-                    type="date"
-                    value={editDueDate}
-                    onChange={(e) => setEditDueDate(e.target.value)}
-                    className="h-7 bg-[#0b0e14] border-[#1b202c]"
-                  />
-                </div>
-              </div>
+            <div>
+              <label className="text-xs font-medium text-slate-200 block mb-1">
+                Client Name
+              </label>
+              <Input
+                value={editClientName}
+                onChange={(e) => setEditClientName(e.target.value)}
+                className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
+              />
+            </div>
 
-              <DialogFooter className="pt-2 flex items-center justify-between">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDeleteConfirmOpen(true)}
-                  className="h-7 text-xs border-rose-500/30 text-rose-400 bg-rose-500/10 hover:bg-rose-600 hover:text-white gap-1 font-mono"
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Status
+                </label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as ProjectStatus)}
+                  className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none"
                 >
-                  <Trash2 className="h-3 w-3" />
-                  <span>Delete</span>
-                </Button>
+                  <option value="active">Active</option>
+                  <option value="planning">Planning</option>
+                  <option value="on_hold">On Hold</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
 
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditModalOpen(false)}
-                    className="h-7 text-xs border-[#232b3c] bg-[#121620]"
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-500 font-mono">
-                    Save Changes
-                  </Button>
-                </div>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Priority
+                </label>
+                <select
+                  value={editPriority}
+                  onChange={(e) => setEditPriority(e.target.value as PriorityLevel)}
+                  className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none"
+                >
+                  <option value="urgent">Urgent</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+            </div>
 
-      {/* ===================================================================== */}
-      {/* Delete Confirmation Modal */}
-      {/* ===================================================================== */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Project Lead
+                </label>
+                <select
+                  value={editManagerId}
+                  onChange={(e) => setEditManagerId(e.target.value)}
+                  className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none"
+                >
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.full_name} ({p.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Target Delivery Date
+                </label>
+                <Input
+                  type="date"
+                  value={editDueDate}
+                  onChange={(e) => setEditDueDate(e.target.value)}
+                  className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-slate-200 block mb-1">
+                Scope Description
+              </label>
+              <Textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                rows={2}
+                className="bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
+              />
+            </div>
+
+            <DialogFooter className="pt-3 border-t border-[#21262d] flex items-center justify-between sm:justify-between w-full">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setEditModalOpen(false)}
+                className="h-8 text-xs border-[#30363d] bg-[#161b22] text-slate-300 hover:bg-[#21262d] rounded-full"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 rounded-full shadow-sm"
+              >
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* 7. QUICK CREATE ISSUE / TASK MODAL */}
+      {/* ========================================================================= */}
+      <Dialog open={quickTaskModalOpen} onOpenChange={setQuickTaskModalOpen}>
+        <DialogContent className="max-w-md bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-2xl">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-[#21262d]">
+            <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+              <Plus className="h-4 w-4" />
+            </div>
+            <div>
+              <DialogTitle className="text-sm font-semibold text-white font-mono">
+                Create Issue in {selectedProject?.code}
+              </DialogTitle>
+              <p className="text-[11px] text-slate-400">
+                Add an agile task to this project's sprint board
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleQuickCreateTask} className="space-y-3 pt-2 text-xs">
+            <div>
+              <label className="text-xs font-medium text-slate-200 block mb-1">
+                Summary / Task Title <span className="text-rose-400">*</span>
+              </label>
+              <Input
+                placeholder="e.g. Implement OAuth2 token refresh endpoint"
+                value={quickTaskTitle}
+                onChange={(e) => setQuickTaskTitle(e.target.value)}
+                className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Column / Status
+                </label>
+                <select
+                  value={quickTaskStatus}
+                  onChange={(e) => setQuickTaskStatus(e.target.value as TaskStatus)}
+                  className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none"
+                >
+                  <option value="todo">TO DO</option>
+                  <option value="in_progress">IN PROGRESS</option>
+                  <option value="review">IN REVIEW</option>
+                  <option value="done">DONE</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-200 block mb-1">
+                  Priority
+                </label>
+                <select
+                  value={quickTaskPriority}
+                  onChange={(e) => setQuickTaskPriority(e.target.value as PriorityLevel)}
+                  className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none"
+                >
+                  <option value="urgent">Urgent</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-slate-200 block mb-1">
+                Assignee
+              </label>
+              <select
+                value={quickTaskAssignee}
+                onChange={(e) => setQuickTaskAssignee(e.target.value)}
+                className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none"
+              >
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name} ({p.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-slate-200 block mb-1">
+                Description (Optional)
+              </label>
+              <Textarea
+                placeholder="Acceptance criteria and technical details..."
+                value={quickTaskDesc}
+                onChange={(e) => setQuickTaskDesc(e.target.value)}
+                rows={2}
+                className="bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg"
+              />
+            </div>
+
+            <DialogFooter className="pt-3 border-t border-[#21262d] flex items-center justify-between sm:justify-between w-full">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setQuickTaskModalOpen(false)}
+                className="h-8 text-xs border-[#30363d] bg-[#161b22] text-slate-300 hover:bg-[#21262d] rounded-full"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 rounded-full shadow-sm"
+              >
+                Create Issue
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* 8. DELETE CONFIRMATION MODAL */}
+      {/* ========================================================================= */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="max-w-sm bg-[#0e1118] border-rose-500/30 p-5">
-          <DialogHeader>
-            <div className="flex items-center gap-2 text-rose-400">
-              <AlertCircle className="h-5 w-5" />
-              <DialogTitle className="text-sm font-bold font-mono text-white">
+        <DialogContent className="max-w-md bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-2xl">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-[#21262d]">
+            <div className="h-7 w-7 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+              <Trash2 className="h-4 w-4" />
+            </div>
+            <div>
+              <DialogTitle className="text-sm font-semibold text-white font-mono">
                 Delete Project Workspace
               </DialogTitle>
+              <p className="text-[11px] text-slate-400">
+                This will permanently delete this project and unassign its issues.
+              </p>
             </div>
-          </DialogHeader>
-          <p className="text-xs text-slate-300 leading-relaxed py-2">
-            Are you sure you want to permanently delete{' '}
-            <strong className="text-white font-mono">"{editingProject?.name}"</strong>? This will remove all
-            workspace configurations.
-          </p>
-          <DialogFooter className="pt-2 flex items-center justify-end gap-2">
+          </div>
+
+          <div className="space-y-3 pt-2 text-xs">
+            <div className="p-3 rounded-lg bg-[#161b22] border border-[#30363d] space-y-1">
+              <span className="text-[10px] uppercase font-mono text-slate-400 block">Project:</span>
+              <p className="text-sm font-semibold text-white">
+                [{editingProject?.code}] {editingProject?.name}
+              </p>
+            </div>
+
+            <p className="text-xs text-rose-300">
+              Are you sure you want to proceed? This action cannot be undone.
+            </p>
+          </div>
+
+          <DialogFooter className="pt-3 border-t border-[#21262d] flex items-center justify-between sm:justify-between w-full">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => setDeleteConfirmOpen(false)}
-              className="h-7 text-xs border-[#232b3c] bg-[#121620]"
+              className="h-8 text-xs border-[#30363d] bg-[#161b22] text-slate-300 hover:bg-[#21262d] rounded-full"
             >
               Cancel
             </Button>
@@ -910,9 +1568,9 @@ export function ProjectsPage() {
               type="button"
               size="sm"
               onClick={handleDeleteProject}
-              className="h-7 text-xs bg-rose-600 hover:bg-rose-500 text-white font-mono font-bold"
+              className="h-8 text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-4 rounded-full shadow-sm"
             >
-              Confirm Delete
+              Delete Project
             </Button>
           </DialogFooter>
         </DialogContent>
