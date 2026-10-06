@@ -318,9 +318,6 @@ export function SettingsPage() {
                 <Clock className="h-3.5 w-3.5 text-blue-400" />
                 <span className="text-xs font-bold font-mono uppercase text-white">Daily Shift Rules</span>
               </div>
-              <span className="text-[9px] font-mono px-1.5 py-0.2 border border-blue-500/20 bg-blue-500/10 text-blue-400">
-                GLOBAL CONFIG
-              </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
