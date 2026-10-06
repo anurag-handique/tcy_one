@@ -564,7 +564,8 @@ export function TasksPage() {
             </div>
           </DialogContent>
         </Dialog>
-      )}
+      );
+    })()}
     </div>
   );
 }
