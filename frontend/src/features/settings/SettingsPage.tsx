@@ -1115,7 +1115,7 @@ export function SettingsPage() {
             <div className="flex items-center justify-between border-b border-[#18202d] pb-2">
               <div className="flex items-center gap-2">
                 <Building2 className="h-3.5 w-3.5 text-blue-400" />
-                <span className="text-xs font-bold font-mono uppercase text-white">Departments & Roles</span>
+                <span className="text-xs font-bold font-mono uppercase text-white">TCY Consulting Private Limited — Departments & Roles</span>
               </div>
 
               <Button

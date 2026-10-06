@@ -236,13 +236,13 @@ export function OrganizationPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                Organization Structure
+                TCY Consulting Private Limited
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-[#1e2538] text-slate-400 border border-[#2b354e]">
-                  Management
+                  Corporate Org
                 </span>
               </h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                Centralized management of corporate departments, designations, seniority tiers, and team distribution.
+                Centralized management of corporate departments, designations, seniority tiers, and team distribution for TCY Consulting Private Limited.
               </p>
             </div>
           </div>
