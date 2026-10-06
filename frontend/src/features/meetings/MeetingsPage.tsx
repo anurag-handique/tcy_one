@@ -369,7 +369,7 @@ export function MeetingsPage() {
                       </span>
                     </div>
 
-                    {/* Compact Attendees Stack */}
+                    {/* Compact Attendees List (Non-overlapping) */}
                     <button
                       onClick={() => {
                         setRosterMeeting(m);
@@ -378,7 +378,7 @@ export function MeetingsPage() {
                       className="flex items-center gap-2 hover:opacity-90 transition-opacity bg-[#111520] hover:bg-[#161c2b] px-2.5 py-1 rounded-full border border-[#1e2536]"
                       title="View attendee details"
                     >
-                      <div className="flex -space-x-2 overflow-hidden py-0.5">
+                      <div className="flex items-center gap-1.5 py-0.5">
                         {participants.slice(0, 4).map((p) => {
                           const emp = profiles.find((prof) => prof.id === p.employee_id);
                           return (
@@ -387,18 +387,18 @@ export function MeetingsPage() {
                               name={emp?.full_name || 'Member'}
                               avatarUrl={emp?.avatar_url}
                               size="sm"
-                              className={`h-5.5 w-5.5 text-[8px] rounded-full ring-2 ring-[#0a0d14] ${
+                              className={`h-6 w-6 text-[9px] rounded-full shrink-0 border ${
                                 p.status === 'accepted'
-                                  ? 'border-emerald-500'
+                                  ? 'border-emerald-500/80 bg-emerald-950/40 text-emerald-300'
                                   : p.status === 'declined'
-                                  ? 'border-rose-500'
-                                  : 'border-slate-600'
+                                  ? 'border-rose-500/80 bg-rose-950/40 text-rose-300'
+                                  : 'border-[#2a3449] bg-[#141926] text-slate-300'
                               }`}
                             />
                           );
                         })}
                       </div>
-                      <span className="text-[11px] font-mono text-slate-400">
+                      <span className="text-[11px] font-mono text-slate-300 font-medium">
                         {participants.length}
                         {acceptedCount > 0 && (
                           <span className="text-emerald-400 ml-1 font-semibold">({acceptedCount}✓)</span>
