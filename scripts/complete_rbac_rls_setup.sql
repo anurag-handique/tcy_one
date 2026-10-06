@@ -697,32 +697,88 @@ create policy "Standup responses updateable by employee or manager"
 
 -- 12. Meetings & Participants
 drop policy if exists "Meetings viewable by authenticated" on public.meetings;
+drop policy if exists "Meetings insertable by authenticated" on public.meetings;
+drop policy if exists "Meetings updatable by creator or manager/admin" on public.meetings;
+drop policy if exists "Meetings deletable by creator or manager/admin" on public.meetings;
+drop policy if exists "Meetings manageable by creator, manager, admin" on public.meetings;
+
 create policy "Meetings viewable by authenticated"
   on public.meetings for select
   to authenticated
   using (true);
 
-drop policy if exists "Meetings manageable by creator, manager, admin" on public.meetings;
-create policy "Meetings manageable by creator, manager, admin"
-  on public.meetings for all
+create policy "Meetings insertable by authenticated"
+  on public.meetings for insert
+  to authenticated
+  with check (true);
+
+create policy "Meetings updatable by creator or manager/admin"
+  on public.meetings for update
   to authenticated
   using (
-    created_by = public.current_profile_id()
+    created_by = auth.uid()
+    or created_by = public.current_profile_id()
+    or created_by in (select id from public.profiles where user_id = auth.uid() or id = auth.uid())
+    or public.is_manager()
+  )
+  with check (true);
+
+create policy "Meetings deletable by creator or manager/admin"
+  on public.meetings for delete
+  to authenticated
+  using (
+    created_by = auth.uid()
+    or created_by = public.current_profile_id()
+    or created_by in (select id from public.profiles where user_id = auth.uid() or id = auth.uid())
     or public.is_manager()
   );
 
 drop policy if exists "Meeting participants viewable by authenticated" on public.meeting_participants;
+drop policy if exists "Meeting participants insertable by authenticated" on public.meeting_participants;
+drop policy if exists "Meeting participants updatable by self or host/manager" on public.meeting_participants;
+drop policy if exists "Meeting participants deletable by self or host/manager" on public.meeting_participants;
+drop policy if exists "Meeting participants manageable by meeting owner or self" on public.meeting_participants;
+
 create policy "Meeting participants viewable by authenticated"
   on public.meeting_participants for select
   to authenticated
   using (true);
 
-drop policy if exists "Meeting participants manageable by meeting owner or self" on public.meeting_participants;
-create policy "Meeting participants manageable by meeting owner or self"
-  on public.meeting_participants for all
+create policy "Meeting participants insertable by authenticated"
+  on public.meeting_participants for insert
+  to authenticated
+  with check (true);
+
+create policy "Meeting participants updatable by self or host/manager"
+  on public.meeting_participants for update
   to authenticated
   using (
-    employee_id = public.current_profile_id()
+    employee_id = auth.uid()
+    or employee_id = public.current_profile_id()
+    or employee_id in (select id from public.profiles where user_id = auth.uid() or id = auth.uid())
+    or meeting_id in (
+      select id from public.meetings 
+      where created_by = auth.uid() 
+         or created_by = public.current_profile_id() 
+         or created_by in (select id from public.profiles where user_id = auth.uid() or id = auth.uid())
+    )
+    or public.is_manager()
+  )
+  with check (true);
+
+create policy "Meeting participants deletable by self or host/manager"
+  on public.meeting_participants for delete
+  to authenticated
+  using (
+    employee_id = auth.uid()
+    or employee_id = public.current_profile_id()
+    or employee_id in (select id from public.profiles where user_id = auth.uid() or id = auth.uid())
+    or meeting_id in (
+      select id from public.meetings 
+      where created_by = auth.uid() 
+         or created_by = public.current_profile_id() 
+         or created_by in (select id from public.profiles where user_id = auth.uid() or id = auth.uid())
+    )
     or public.is_manager()
   );
 
