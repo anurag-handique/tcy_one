@@ -361,7 +361,7 @@ export function MeetingsPage() {
                         name={host?.full_name || 'Organizer'}
                         avatarUrl={host?.avatar_url}
                         size="sm"
-                        className="h-5.5 w-5.5 text-[9px] border border-blue-500/30"
+                        className="h-6 w-6 text-[10px] rounded-full border border-blue-500/30"
                       />
                       <span className="text-xs text-slate-300 truncate font-medium">
                         {host?.full_name || 'Squad Organizer'}
@@ -375,10 +375,10 @@ export function MeetingsPage() {
                         setRosterMeeting(m);
                         setRosterModalOpen(true);
                       }}
-                      className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                      className="flex items-center gap-2 hover:opacity-90 transition-opacity bg-[#111520] hover:bg-[#161c2b] px-2.5 py-1 rounded-full border border-[#1e2536]"
                       title="View attendee details"
                     >
-                      <div className="flex -space-x-1.5 overflow-hidden">
+                      <div className="flex -space-x-2 overflow-hidden py-0.5">
                         {participants.slice(0, 4).map((p) => {
                           const emp = profiles.find((prof) => prof.id === p.employee_id);
                           return (
@@ -387,7 +387,7 @@ export function MeetingsPage() {
                               name={emp?.full_name || 'Member'}
                               avatarUrl={emp?.avatar_url}
                               size="sm"
-                              className={`h-5 w-5 text-[8px] ring-1 ring-[#0a0d14] ${
+                              className={`h-5.5 w-5.5 text-[8px] rounded-full ring-2 ring-[#0a0d14] ${
                                 p.status === 'accepted'
                                   ? 'border-emerald-500'
                                   : p.status === 'declined'
@@ -401,7 +401,7 @@ export function MeetingsPage() {
                       <span className="text-[11px] font-mono text-slate-400">
                         {participants.length}
                         {acceptedCount > 0 && (
-                          <span className="text-emerald-400 ml-1">({acceptedCount}✓)</span>
+                          <span className="text-emerald-400 ml-1 font-semibold">({acceptedCount}✓)</span>
                         )}
                       </span>
                     </button>
