@@ -257,7 +257,7 @@ export function MyDayPage() {
               className="h-6 text-[11px] px-2 border-[#262c3b] bg-[#12151e]"
             >
               <Plus className="h-3 w-3 mr-1" />
-              Add Item
+              Create Task
             </Button>
           </div>
 
