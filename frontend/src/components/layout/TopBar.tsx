@@ -84,7 +84,7 @@ export function TopBar() {
   const unreadNotifs = myNotifications.filter((n) => !n.is_read);
 
   return (
-    <header className="flex h-12 w-full items-center justify-between border-b border-[#1b202c] bg-[#0e1118] px-4 z-20 select-none">
+    <header className="flex h-12 w-full items-center justify-between border-b theme-border theme-surface-bg px-4 z-20 select-none">
       {/* Breadcrumb Path */}
       <div className="flex items-center gap-2 text-xs">
         <span className="text-slate-400 font-medium">Workspace</span>

@@ -200,8 +200,8 @@ export function SettingsPage() {
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
             activeTab === 'attendance'
-              ? 'bg-blue-600 text-white border-blue-500'
-              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#121724]'
+              ? 'tab-active'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
           )}
         >
           <Clock className="h-3 w-3" />
@@ -214,8 +214,8 @@ export function SettingsPage() {
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
             activeTab === 'saturdays'
-              ? 'bg-blue-600 text-white border-blue-500'
-              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#121724]'
+              ? 'tab-active'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
           )}
         >
           <CalendarCheck className="h-3 w-3" />
@@ -240,8 +240,8 @@ export function SettingsPage() {
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
             activeTab === 'density'
-              ? 'bg-blue-600 text-white border-blue-500'
-              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#121724]'
+              ? 'tab-active'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
           )}
         >
           <Layers className="h-3 w-3" />
@@ -254,8 +254,8 @@ export function SettingsPage() {
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
             activeTab === 'appearance'
-              ? 'bg-blue-600 text-white border-blue-500'
-              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#121724]'
+              ? 'tab-active'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
           )}
         >
           <Palette className="h-3 w-3" />
@@ -268,8 +268,8 @@ export function SettingsPage() {
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
             activeTab === 'shortcuts'
-              ? 'bg-blue-600 text-white border-blue-500'
-              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#121724]'
+              ? 'tab-active'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
           )}
         >
           <Keyboard className="h-3 w-3" />
@@ -283,8 +283,8 @@ export function SettingsPage() {
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
               activeTab === 'database'
-                ? 'bg-blue-600 text-white border-blue-500'
-                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#121724]'
+                ? 'tab-active'
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
             )}
           >
             <Database className="h-3 w-3" />
@@ -298,8 +298,8 @@ export function SettingsPage() {
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
             activeTab === 'organization'
-              ? 'bg-blue-600 text-white border-blue-500'
-              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#121724]'
+              ? 'tab-active'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
           )}
         >
           <Building2 className="h-3 w-3" />
@@ -632,13 +632,13 @@ export function SettingsPage() {
                 className={cn(
                   'p-3 border cursor-pointer transition-all space-y-2',
                   densityMode === 'comfortable'
-                    ? 'border-blue-500 bg-blue-950/20 shadow-md'
+                    ? 'accent-border bg-white/5 shadow-md'
                     : 'border-[#1b2230] bg-[#080b11] hover:border-[#2a3449]'
                 )}
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-white">Comfortable</span>
-                  {densityMode === 'comfortable' && <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />}
+                  {densityMode === 'comfortable' && <CheckCircle2 className="h-3.5 w-3.5 accent-text" />}
                 </div>
                 <p className="text-[10px] text-slate-400 leading-normal">
                   Spacious desktop margins, standard row heights, and generous card padding.
@@ -661,13 +661,13 @@ export function SettingsPage() {
                 className={cn(
                   'p-3 border cursor-pointer transition-all space-y-2',
                   densityMode === 'compact'
-                    ? 'border-blue-500 bg-blue-950/20 shadow-md'
+                    ? 'accent-border bg-white/5 shadow-md'
                     : 'border-[#1b2230] bg-[#080b11] hover:border-[#2a3449]'
                 )}
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-white">Compact High-Density</span>
-                  {densityMode === 'compact' && <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />}
+                  {densityMode === 'compact' && <CheckCircle2 className="h-3.5 w-3.5 accent-text" />}
                 </div>
                 <p className="text-[10px] text-slate-400 leading-normal">
                   Condensed table row heights, tight grid gaps, and maximum data per viewport.
@@ -690,13 +690,13 @@ export function SettingsPage() {
                 className={cn(
                   'p-3 border cursor-pointer transition-all space-y-2',
                   densityMode === 'ultra'
-                    ? 'border-blue-500 bg-blue-950/20 shadow-md'
+                    ? 'accent-border bg-white/5 shadow-md'
                     : 'border-[#1b2230] bg-[#080b11] hover:border-[#2a3449]'
                 )}
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-white">Ultra-Compact CLI</span>
-                  {densityMode === 'ultra' && <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />}
+                  {densityMode === 'ultra' && <CheckCircle2 className="h-3.5 w-3.5 accent-text" />}
                 </div>
                 <p className="text-[10px] text-slate-400 leading-normal">
                   Maximum screen efficiency with micro padding and developer monospace styling.
@@ -741,7 +741,7 @@ export function SettingsPage() {
                 className={cn(
                   'p-3 border cursor-pointer transition-all space-y-2 relative overflow-hidden',
                   themePreset === 'obsidian'
-                    ? 'border-blue-500 bg-[#0e121a] ring-1 ring-blue-500/50'
+                    ? 'accent-border bg-[#0e121a] ring-1 ring-white/10'
                     : 'border-[#1b2230] bg-[#0b0d13] hover:border-[#2a3449]'
                 )}
               >

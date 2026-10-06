@@ -61,9 +61,9 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="relative flex w-14 flex-col border-r border-[#1a1f2b] bg-[#0c0e15] select-none z-30 shrink-0">
+    <aside className="relative flex w-14 flex-col border-r theme-border theme-titlebar-bg select-none z-30 shrink-0">
       {/* Brand Icon Header */}
-      <div className="flex h-12 items-center justify-center border-b border-[#1a1f2b]">
+      <div className="flex h-12 items-center justify-center border-b theme-border">
         <img
           src="/favicon (1).ico"
           alt="TCY Logo"
@@ -87,8 +87,8 @@ export function Sidebar() {
                     cn(
                       'group relative flex h-8 w-8 mx-auto items-center justify-center rounded-none transition-all duration-150 border',
                       isActive
-                        ? 'bg-[#1c2230] text-blue-400 border-[#2b3548] shadow-sm'
-                        : 'border-transparent text-slate-400 hover:bg-[#141822] hover:text-slate-200'
+                        ? 'accent-bg text-white accent-border shadow-sm'
+                        : 'border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200'
                     )
                   }
                 >

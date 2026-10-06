@@ -60,10 +60,10 @@ export function AppLayout() {
       data-accent={accentColor}
       data-font={fontFamily}
       data-reduced-motion={reducedMotion ? 'true' : 'false'}
-      className="flex h-screen w-screen flex-col overflow-hidden bg-[#0b0d13] text-slate-200 font-sans select-none antialiased app-viewport-bg"
+      className="flex h-screen w-screen flex-col overflow-hidden theme-app-bg text-slate-200 font-sans select-none antialiased"
     >
       {/* 1. Desktop Window Native TitleBar */}
-      <div className="desktop-titlebar flex h-8 w-full items-center justify-between border-b border-[#1b202c] bg-[#0c0e15] px-3 text-[11px] text-slate-400 z-50">
+      <div className="desktop-titlebar flex h-8 w-full items-center justify-between border-b theme-border theme-titlebar-bg px-3 text-[11px] text-slate-400 z-50">
         {/* Left: App Identity */}
         <div className="flex items-center gap-2 desktop-no-drag">
           <img
@@ -111,12 +111,12 @@ export function AppLayout() {
         <Sidebar />
 
         {/* Center Workspace Viewport */}
-        <div className="flex flex-1 flex-col overflow-hidden bg-[#0e1118]">
+        <div className="flex flex-1 flex-col overflow-hidden theme-surface-bg">
           {/* Desktop TopBar / Viewport Toolbar */}
           <TopBar />
 
           {/* Viewport Canvas */}
-          <main className="flex-1 overflow-y-auto bg-[#0b0d13] p-5">
+          <main className="flex-1 overflow-y-auto theme-app-bg p-5">
             <div className="mx-auto max-w-[1400px]">
               <Outlet />
             </div>
@@ -125,7 +125,7 @@ export function AppLayout() {
       </div>
 
       {/* 3. Desktop Native Bottom Status Bar */}
-      <div className="flex h-6 w-full items-center justify-between border-t border-[#1b202c] bg-[#0c0e15] px-3 text-[11px] text-slate-400 z-40">
+      <div className="flex h-6 w-full items-center justify-between border-t theme-border theme-titlebar-bg px-3 text-[11px] text-slate-400 z-40">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-400">
             <Clock className="h-3 w-3 text-blue-400" />
