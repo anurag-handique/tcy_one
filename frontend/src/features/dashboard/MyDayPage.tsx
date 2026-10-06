@@ -43,6 +43,7 @@ export function MyDayPage() {
     standups,
     standupResponses,
     meetings,
+    respondToMeeting,
     leaveRequests,
     leaveTypes,
     reviewLeaveRequest,
@@ -401,33 +402,105 @@ export function MyDayPage() {
               </button>
             </div>
 
-            <div className="p-2 space-y-1.5 text-xs">
+            <div className="p-2 space-y-2 text-xs">
               {todayMeetings.length === 0 ? (
                 <p className="text-xs text-slate-400 py-3 text-center font-mono">
                   Calendar clear for deep work.
                 </p>
               ) : (
-                todayMeetings.map((m) => (
-                  <div key={m.id} className="p-2 rounded bg-[#0b0e14] border border-[#1b202c]">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-200 text-xs">{m.title}</span>
-                      <span className="font-mono text-[10px] text-blue-400">
-                        {formatTime(m.start_time)}
-                      </span>
+                todayMeetings.map((m) => {
+                  const isHost = m.created_by === currentUser.id;
+                  const myPart = (m.participants || []).find((p) => p.employee_id === currentUser.id);
+                  const isInvited = isHost || Boolean(myPart);
+                  const isAccepted = isHost || myPart?.status === 'accepted';
+                  const isDeclined = myPart?.status === 'declined';
+                  const isPending = isInvited && !isHost && myPart?.status === 'invited';
+
+                  return (
+                    <div key={m.id} className="p-2.5 rounded bg-[#0b0e14] border border-[#1b202c] space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-200 text-xs truncate max-w-[170px]" title={m.title}>
+                          {m.title}
+                        </span>
+                        <span className="font-mono text-[10px] text-blue-400 shrink-0">
+                          {formatTime(m.start_time)}
+                        </span>
+                      </div>
+
+                      {/* Conditional Link / RSVP Actions */}
+                      {!isInvited ? (
+                        <div className="flex items-center justify-between pt-1 border-t border-[#161a24] text-[10px] text-slate-500 font-mono">
+                          <span>Not in attendee roster</span>
+                          <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                            Not Invited
+                          </span>
+                        </div>
+                      ) : isPending ? (
+                        <div className="flex items-center justify-between pt-1 border-t border-[#161a24]">
+                          <span className="text-[10px] text-amber-400 font-mono">
+                            Invited (RSVP required)
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => {
+                                respondToMeeting(m.id, currentUser.id, 'accepted');
+                                toast.success('Invitation accepted! Link to join call is now unlocked.');
+                              }}
+                              className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-600/30 transition-colors"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => {
+                                respondToMeeting(m.id, currentUser.id, 'declined');
+                                toast.info('Meeting invitation declined');
+                              }}
+                              className="px-2 py-0.5 rounded text-[10px] font-mono bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white border border-rose-600/30 transition-colors"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      ) : isDeclined ? (
+                        <div className="flex items-center justify-between pt-1 border-t border-[#161a24]">
+                          <span className="text-[10px] text-rose-400 font-mono">
+                            Declined
+                          </span>
+                          <button
+                            onClick={() => {
+                              respondToMeeting(m.id, currentUser.id, 'accepted');
+                              toast.success('Invitation accepted! Link to join call is now unlocked.');
+                            }}
+                            className="text-[10px] font-mono text-slate-400 hover:text-emerald-400 underline"
+                          >
+                            Change to Accept
+                          </button>
+                        </div>
+                      ) : (
+                        /* isAccepted (Host or accepted invitee) */
+                        <div className="flex items-center justify-between pt-1 border-t border-[#161a24]">
+                          <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                            <Check className="h-2.5 w-2.5" />
+                            {isHost ? 'Host' : 'Accepted'}
+                          </span>
+                          {m.meeting_url ? (
+                            <a
+                              href={m.meeting_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/30 hover:bg-blue-500/20 transition-colors"
+                            >
+                              <span>Join Call</span>
+                              <ExternalLink className="h-2.5 w-2.5" />
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 font-mono">No URL</span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    {m.meeting_url && (
-                      <a
-                        href={m.meeting_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:underline mt-1"
-                      >
-                        <span>Join Call</span>
-                        <ExternalLink className="h-2.5 w-2.5" />
-                      </a>
-                    )}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
