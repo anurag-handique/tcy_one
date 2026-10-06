@@ -2,7 +2,19 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Users, Search, Check, CheckSquare, Square, Video, Sparkles, UserCheck } from 'lucide-react';
+import {
+  Users,
+  Search,
+  Check,
+  Video,
+  Sparkles,
+  Calendar,
+  Clock,
+  Building,
+  FolderKanban,
+  FileText,
+  X,
+} from 'lucide-react';
 import { useUIStore } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -14,7 +26,7 @@ import { UserAvatar } from '@/components/ui/Avatar';
 import { toast } from 'sonner';
 
 const meetingSchema = z.object({
-  title: z.string().min(3, 'Meeting title is required'),
+  title: z.string().min(3, 'Meeting subject is required'),
   description: z.string().optional(),
   agenda: z.string().optional(),
   meeting_url: z.string().optional(),
@@ -49,20 +61,23 @@ export function ScheduleMeetingModal() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<MeetingFormData>({
     resolver: zodResolver(meetingSchema),
     defaultValues: {
       title: '',
       description: '',
-      agenda: '1. Sync objectives\n2. Key deliverables\n3. Action items & Q&A',
+      agenda: '',
       meeting_url: '',
-      room_location: 'Virtual / Room 1',
+      room_location: 'Virtual',
       start_time: defaultStart,
       end_time: defaultEnd,
       project_id: '',
     },
   });
+
+  const startTimeVal = watch('start_time');
 
   // Load meeting data when opening modal
   React.useEffect(() => {
@@ -72,7 +87,7 @@ export function ScheduleMeetingModal() {
         setValue('description', editingMeeting.description || '');
         setValue('agenda', editingMeeting.agenda || '');
         setValue('meeting_url', editingMeeting.meeting_url || '');
-        setValue('room_location', editingMeeting.room_location || 'Virtual / Room 1');
+        setValue('room_location', editingMeeting.room_location || 'Virtual');
         setValue(
           'start_time',
           editingMeeting.start_time
@@ -97,9 +112,9 @@ export function ScheduleMeetingModal() {
         reset({
           title: '',
           description: '',
-          agenda: '1. Sync objectives\n2. Key deliverables\n3. Action items & Q&A',
+          agenda: '',
           meeting_url: '',
-          room_location: 'Virtual / Room 1',
+          room_location: 'Virtual',
           start_time: defaultStart,
           end_time: defaultEnd,
           project_id: '',
@@ -110,6 +125,13 @@ export function ScheduleMeetingModal() {
       }
     }
   }, [activeMeetingModalOpen, editingMeeting, profiles, reset, setValue, defaultStart, defaultEnd]);
+
+  // Duration helper
+  const handleSetDuration = (minutes: number) => {
+    const base = startTimeVal ? new Date(startTimeVal) : new Date();
+    const end = new Date(base.getTime() + minutes * 60 * 1000);
+    setValue('end_time', end.toISOString().slice(0, 16), { shouldValidate: true });
+  };
 
   const filteredEmployees = React.useMemo(() => {
     const q = employeeSearch.toLowerCase().trim();
@@ -125,7 +147,7 @@ export function ScheduleMeetingModal() {
 
   const toggleEmployee = (empId: string) => {
     const hostId = editingMeeting ? editingMeeting.created_by : currentUser.id;
-    if (empId === hostId) return; // Organizer always stays included
+    if (empId === hostId) return; // Organizer stays selected
     setSelectedEmployeeIds((prev) =>
       prev.includes(empId) ? prev.filter((id) => id !== empId) : [...prev, empId]
     );
@@ -141,13 +163,13 @@ export function ScheduleMeetingModal() {
   };
 
   const handleGenerateLink = () => {
-    const randomCode =
+    const code =
       Math.random().toString(36).substring(2, 5) +
       '-' +
       Math.random().toString(36).substring(2, 6) +
       '-' +
       Math.random().toString(36).substring(2, 5);
-    const generatedUrl = `https://meet.google.com/${randomCode}`;
+    const generatedUrl = `https://meet.google.com/${code}`;
     setValue('meeting_url', generatedUrl, { shouldValidate: true });
     toast.success('Generated Google Meet link');
   };
@@ -157,13 +179,10 @@ export function ScheduleMeetingModal() {
     const allIds = Array.from(new Set([hostId, ...selectedEmployeeIds]));
 
     if (isEditMode && editingMeeting) {
-      // Preserve existing participant statuses if already responded
       const existingParticipants = editingMeeting.participants || [];
       const updatedParticipants = allIds.map((empId) => {
         const found = existingParticipants.find((p) => p.employee_id === empId);
-        if (found) {
-          return found;
-        }
+        if (found) return found;
         return {
           id: 'mp-' + Date.now() + '-' + empId,
           meeting_id: editingMeeting.id,
@@ -173,11 +192,11 @@ export function ScheduleMeetingModal() {
       });
 
       updateMeeting(editingMeeting.id, {
-        title: data.title,
-        description: data.description || undefined,
-        agenda: data.agenda || undefined,
-        meeting_url: data.meeting_url || undefined,
-        room_location: data.room_location || undefined,
+        title: data.title.trim(),
+        description: data.description?.trim() || undefined,
+        agenda: data.agenda?.trim() || undefined,
+        meeting_url: data.meeting_url?.trim() || undefined,
+        room_location: data.room_location?.trim() || undefined,
         start_time: new Date(data.start_time).toISOString(),
         end_time: new Date(data.end_time).toISOString(),
         project_id: data.project_id || undefined,
@@ -196,11 +215,11 @@ export function ScheduleMeetingModal() {
       }));
 
       createMeeting({
-        title: data.title,
-        description: data.description || undefined,
-        agenda: data.agenda || undefined,
-        meeting_url: data.meeting_url || undefined,
-        room_location: data.room_location || undefined,
+        title: data.title.trim(),
+        description: data.description?.trim() || undefined,
+        agenda: data.agenda?.trim() || undefined,
+        meeting_url: data.meeting_url?.trim() || undefined,
+        room_location: data.room_location?.trim() || undefined,
         start_time: new Date(data.start_time).toISOString(),
         end_time: new Date(data.end_time).toISOString(),
         status: 'scheduled',
@@ -209,7 +228,7 @@ export function ScheduleMeetingModal() {
         participants,
       });
 
-      toast.success(`Meeting scheduled with ${participants.length} team members invited`);
+      toast.success(`Meeting scheduled with ${participants.length} teammates`);
       reset();
       setMeetingModalOpen(false);
     }
@@ -217,78 +236,98 @@ export function ScheduleMeetingModal() {
 
   return (
     <Dialog open={activeMeetingModalOpen} onOpenChange={setMeetingModalOpen}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-              <Video className="h-4 w-4" />
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-hidden flex flex-col bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-xl">
+        {/* Minimal Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-[#21262d]">
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+              <Video className="h-4 w-4 text-blue-400" />
             </div>
             <div>
-              <DialogTitle className="text-sm font-bold text-white font-mono uppercase">
-                {isEditMode ? 'EDIT INTERNAL MEETING' : 'SCHEDULE INTERNAL MEETING'}
+              <DialogTitle className="text-sm font-semibold text-white">
+                {isEditMode ? 'Edit Internal Meeting' : 'Schedule Internal Meeting'}
               </DialogTitle>
               <p className="text-[11px] text-slate-400">
-                {isEditMode
-                  ? 'Update meeting details, time slot, agenda, and invited attendees.'
-                  : 'Set meeting schedule, project alignment, and invite squad members.'}
+                Organizer: <span className="text-slate-200">{currentUser.full_name}</span>
               </p>
             </div>
           </div>
-        </DialogHeader>
+        </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 pt-2">
+        {/* Scrollable Form Body */}
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="flex-1 overflow-y-auto space-y-3.5 pr-1 pt-2 text-xs"
+        >
           {/* Title */}
           <div>
-            <label className="text-[11px] font-mono uppercase tracking-wider text-slate-300">
-              Meeting Subject / Title <span className="text-rose-400">*</span>
+            <label className="text-xs font-medium text-slate-200 block mb-1">
+              Meeting Title <span className="text-rose-400">*</span>
             </label>
             <Input
-              placeholder="e.g. Sprint Backlog Grooming & Architecture Review"
+              placeholder="e.g. Sprint Backlog Planning & Sync"
               {...register('title')}
-              className="mt-1"
+              className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 rounded-lg focus:border-blue-500"
             />
-            {errors.title && <p className="text-[10px] text-rose-400 mt-0.5">{errors.title.message}</p>}
+            {errors.title && (
+              <p className="text-[11px] text-rose-400 mt-1">{errors.title.message}</p>
+            )}
           </div>
 
-          {/* Times */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {/* Time & Duration Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-mono uppercase tracking-wider text-slate-300">
+              <label className="text-xs font-medium text-slate-200 block mb-1">
                 Start Time <span className="text-rose-400">*</span>
               </label>
-              <Input type="datetime-local" {...register('start_time')} className="mt-1" />
+              <Input
+                type="datetime-local"
+                {...register('start_time')}
+                className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg focus:border-blue-500"
+              />
               {errors.start_time && (
-                <p className="text-[10px] text-rose-400 mt-0.5">{errors.start_time.message}</p>
+                <p className="text-[11px] text-rose-400 mt-1">{errors.start_time.message}</p>
               )}
             </div>
 
             <div>
-              <label className="text-[11px] font-mono uppercase tracking-wider text-slate-300">
-                End Time <span className="text-rose-400">*</span>
-              </label>
-              <Input type="datetime-local" {...register('end_time')} className="mt-1" />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-slate-200">
+                  End Time <span className="text-rose-400">*</span>
+                </label>
+                <div className="flex items-center gap-1">
+                  {[15, 30, 60].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => handleSetDuration(m)}
+                      className="px-1.5 py-0.2 rounded text-[10px] bg-[#21262d] text-slate-300 hover:text-white hover:bg-blue-600/30"
+                    >
+                      {m}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <Input
+                type="datetime-local"
+                {...register('end_time')}
+                className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 rounded-lg focus:border-blue-500"
+              />
               {errors.end_time && (
-                <p className="text-[10px] text-rose-400 mt-0.5">{errors.end_time.message}</p>
+                <p className="text-[11px] text-rose-400 mt-1">{errors.end_time.message}</p>
               )}
             </div>
           </div>
 
-          {/* Location & Associated Project */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {/* Project & Location Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-mono uppercase tracking-wider text-slate-300">
-                Location / Room
-              </label>
-              <Input placeholder="Conference Room A / Remote" {...register('room_location')} className="mt-1" />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-mono uppercase tracking-wider text-slate-300">
+              <label className="text-xs font-medium text-slate-200 block mb-1">
                 Associated Project
               </label>
               <select
                 {...register('project_id')}
-                className="mt-1 flex h-7.5 w-full rounded-none border border-[#1f2637] bg-[#0c1018] px-2.5 py-1 text-xs text-slate-100 font-mono shadow-sm transition-all focus:outline-none focus:border-blue-500"
+                className="w-full h-8 bg-[#161b22] border border-[#30363d] rounded-lg px-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
               >
                 <option value="">None (General Team Sync)</option>
                 {projects.map((p) => (
@@ -298,102 +337,96 @@ export function ScheduleMeetingModal() {
                 ))}
               </select>
             </div>
+
+            <div>
+              <label className="text-xs font-medium text-slate-200 block mb-1">
+                Room / Location
+              </label>
+              <Input
+                placeholder="Virtual / Main Conference Room"
+                {...register('room_location')}
+                className="h-8 bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 rounded-lg focus:border-blue-500"
+              />
+            </div>
           </div>
 
-          {/* Meeting URL */}
+          {/* Meeting Video Link */}
           <div>
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-mono uppercase tracking-wider text-slate-300">
-                Meeting Link URL
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-slate-200">
+                Meeting Video Link
               </label>
               <button
                 type="button"
                 onClick={handleGenerateLink}
-                className="inline-flex items-center gap-1 text-[10px] font-mono text-blue-400 hover:text-blue-300 hover:underline"
+                className="inline-flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 font-medium"
               >
-                <Sparkles className="h-2.5 w-2.5" />
-                <span>Generate Meet Link</span>
+                <Sparkles className="h-3 w-3" /> Auto-generate Meet Link
               </button>
             </div>
-            <Input placeholder="https://meet.google.com/... or Zoom link" {...register('meeting_url')} className="mt-1" />
-          </div>
-
-          {/* Agenda & Notes */}
-          <div>
-            <label className="text-[11px] font-mono uppercase tracking-wider text-slate-300">
-              Agenda & Discussion Points
-            </label>
-            <Textarea
-              placeholder="Outline meeting points..."
-              rows={2}
-              {...register('agenda')}
-              className="mt-1 rounded-none border-[#1f2637] bg-[#0c1018] text-xs font-mono"
+            <Input
+              placeholder="https://meet.google.com/abc-defg-hij"
+              {...register('meeting_url')}
+              className="h-8 bg-[#161b22] border-[#30363d] text-xs text-blue-300 font-mono placeholder:text-slate-500 rounded-lg focus:border-blue-500"
             />
           </div>
 
-          {/* Employee Invite Section */}
-          <div className="pt-2 border-t border-[#1b202c]">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2">
+          {/* Attendees Selector */}
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-slate-200 flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5 text-blue-400" />
-                <span className="text-[11px] font-mono uppercase font-bold text-slate-200 tracking-wider">
-                  Invite Squad Members
-                </span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-blue-500/15 text-blue-400 border border-blue-500/30">
-                  {selectedEmployeeIds.length} Selected
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
+                <span>Invite Teammates ({selectedEmployeeIds.length})</span>
+              </label>
+              <div className="flex items-center gap-2 text-[11px]">
                 <button
                   type="button"
                   onClick={selectAllEmployees}
-                  className="text-[10px] font-mono text-slate-400 hover:text-white"
+                  className="text-blue-400 hover:underline"
                 >
                   Select All
                 </button>
-                <span className="text-slate-600 text-xs">|</span>
+                <span className="text-slate-600">•</span>
                 <button
                   type="button"
                   onClick={deselectAllEmployees}
-                  className="text-[10px] font-mono text-slate-400 hover:text-white"
+                  className="text-slate-400 hover:underline"
                 >
                   Clear
                 </button>
               </div>
             </div>
 
-            {/* Employee search filter */}
-            <div className="relative mb-2">
-              <Search className="absolute left-2.5 top-2 h-3 w-3 text-slate-500" />
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500" />
               <input
                 type="text"
-                placeholder="Search teammates by name or designation..."
+                placeholder="Search teammates by name or email..."
                 value={employeeSearch}
                 onChange={(e) => setEmployeeSearch(e.target.value)}
-                className="w-full h-7 bg-[#090b10] border border-[#1b202c] rounded pl-7 pr-2.5 text-[11px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+                className="w-full h-7.5 bg-[#161b22] border border-[#30363d] rounded-lg pl-8 pr-2.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
               />
             </div>
 
-            {/* Scrollable employee list */}
-            <div className="max-h-40 overflow-y-auto rounded border border-[#1b202c] bg-[#090b10] divide-y divide-[#151924] p-1 space-y-0.5">
+            <div className="max-h-36 overflow-y-auto rounded-lg border border-[#30363d] bg-[#161b22] divide-y divide-[#21262d]">
               {filteredEmployees.length === 0 ? (
-                <div className="py-4 text-center text-xs text-slate-500 font-mono">
-                  No teammates match your search.
+                <div className="p-3 text-center text-xs text-slate-500">
+                  No teammates found.
                 </div>
               ) : (
                 filteredEmployees.map((emp) => {
-                  const isCreator = emp.id === currentUser.id;
-                  const isSelected = isCreator || selectedEmployeeIds.includes(emp.id);
+                  const hostId = editingMeeting ? editingMeeting.created_by : currentUser.id;
+                  const isHost = emp.id === hostId;
+                  const isSelected = isHost || selectedEmployeeIds.includes(emp.id);
 
                   return (
                     <div
                       key={emp.id}
                       onClick={() => toggleEmployee(emp.id)}
-                      className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition-colors ${
+                      className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors ${
                         isSelected
-                          ? 'bg-blue-600/10 border border-blue-500/30 text-white'
-                          : 'hover:bg-[#121622] text-slate-400 border border-transparent'
+                          ? 'bg-blue-600/10 text-white'
+                          : 'hover:bg-[#21262d] text-slate-300'
                       }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
@@ -401,34 +434,32 @@ export function ScheduleMeetingModal() {
                           className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
                             isSelected
                               ? 'bg-blue-600 border-blue-500 text-white'
-                              : 'border-slate-700 bg-[#0c1018]'
+                              : 'border-slate-600 bg-transparent'
                           }`}
                         >
                           {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
                         </div>
-                        <UserAvatar name={emp.full_name} avatarUrl={emp.avatar_url} size="sm" className="h-5 w-5 text-[9px]" />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-medium text-slate-200 truncate">
-                              {emp.full_name}
-                            </span>
-                            {isCreator && (
-                              <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                                Host (You)
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-slate-400 font-mono block truncate">
-                            {emp.designation_title || emp.role.replace('_', ' ')}
+                        <UserAvatar
+                          name={emp.full_name}
+                          avatarUrl={emp.avatar_url}
+                          size="sm"
+                          className="h-5 w-5 text-[9px]"
+                        />
+                        <div className="truncate">
+                          <span className="text-xs font-medium text-slate-200 truncate">
+                            {emp.full_name}
                           </span>
+                          {isHost && (
+                            <span className="ml-1.5 text-[9px] px-1 py-0.2 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                              Host
+                            </span>
+                          )}
                         </div>
                       </div>
 
-                      <div className="shrink-0 text-right">
-                        <span className="text-[10px] font-mono text-slate-400">
-                          {emp.email}
-                        </span>
-                      </div>
+                      <span className="text-[10px] text-slate-400 truncate max-w-[140px]">
+                        {emp.designation_title || emp.role?.replace('_', ' ')}
+                      </span>
                     </div>
                   );
                 })
@@ -436,13 +467,27 @@ export function ScheduleMeetingModal() {
             </div>
           </div>
 
-          <DialogFooter className="pt-2 border-t border-[#1b202c]">
+          {/* Agenda */}
+          <div>
+            <label className="text-xs font-medium text-slate-200 block mb-1">
+              Agenda & Notes (Optional)
+            </label>
+            <Textarea
+              placeholder="Outline discussion points or sprint deliverables..."
+              rows={2}
+              {...register('agenda')}
+              className="bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 rounded-lg focus:border-blue-500"
+            />
+          </div>
+
+          {/* Footer Actions */}
+          <DialogFooter className="pt-3 border-t border-[#21262d] flex items-center justify-between sm:justify-between w-full">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => setMeetingModalOpen(false)}
-              className="h-7 text-xs border-[#222837] bg-[#12151e]"
+              className="h-8 text-xs border-[#30363d] bg-[#161b22] hover:bg-[#21262d] text-slate-300"
             >
               Cancel
             </Button>
@@ -450,9 +495,9 @@ export function ScheduleMeetingModal() {
               type="submit"
               size="sm"
               disabled={isSubmitting}
-              className="h-7 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium"
+              className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 shadow-sm"
             >
-              {isEditMode ? 'Update Meeting' : `Schedule & Invite (${selectedEmployeeIds.length})`}
+              {isEditMode ? 'Save Changes' : `Schedule (${selectedEmployeeIds.length} Invited)`}
             </Button>
           </DialogFooter>
         </form>

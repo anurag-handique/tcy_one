@@ -8,12 +8,18 @@ import { useAuthStore } from '@/stores/authStore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
-import { Clock, AlertTriangle, Video, Sparkles, CheckCircle2, MessageSquareShare } from 'lucide-react';
+import {
+  Clock,
+  AlertCircle,
+  CheckCircle2,
+  MessageSquareShare,
+  Lock,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 const standupSchema = z.object({
-  yesterday_work: z.string().min(5, 'Please mention what you completed yesterday / previous pending works'),
-  today_plan: z.string().min(5, 'Please specify what you will work on today'),
+  yesterday_work: z.string().min(5, 'Please specify what you completed yesterday'),
+  today_plan: z.string().min(5, 'Please specify your focus for today'),
   blockers: z.string().optional(),
 });
 
@@ -45,7 +51,6 @@ export function SubmitStandupModal() {
 
   const isBeforeStart = now.getTime() < startTimeDate.getTime();
   const isPastCutoff = now.getTime() > cutoffDate.getTime();
-  const isWindowActive = !isBeforeStart && !isPastCutoff;
 
   const {
     register,
@@ -67,12 +72,18 @@ export function SubmitStandupModal() {
       setValue('yesterday_work', existingResponse.yesterday_work);
       setValue('today_plan', existingResponse.today_plan);
       setValue('blockers', existingResponse.blockers || 'None');
+    } else if (activeStandupModalOpen) {
+      reset({
+        yesterday_work: '',
+        today_plan: '',
+        blockers: 'None',
+      });
     }
-  }, [existingResponse, setValue, activeStandupModalOpen]);
+  }, [existingResponse, setValue, reset, activeStandupModalOpen]);
 
   const onSubmit = (data: StandupFormData) => {
     if (isBeforeStart) {
-      toast.error(`Submission window is locked. Submissions open at ${meetingTime}.`);
+      toast.error(`Submission is locked until ${meetingTime}.`);
       return;
     }
 
@@ -98,9 +109,9 @@ export function SubmitStandupModal() {
     });
 
     if (resp.status === 'missed') {
-      toast.warning('Standup submitted past the threshold cutoff time. Recorded as Late / Missed.');
+      toast.warning('Standup submitted past the cutoff time (Recorded as Late).');
     } else {
-      toast.success('Standup response posted to team sync successfully!');
+      toast.success('Standup submitted successfully!');
     }
 
     reset();
@@ -109,137 +120,130 @@ export function SubmitStandupModal() {
 
   return (
     <Dialog open={activeStandupModalOpen} onOpenChange={setStandupModalOpen}>
-      <DialogContent className="max-w-lg bg-[#0c0f17] border-[#1f2637] p-5 shadow-2xl">
-        <DialogHeader className="border-b border-[#1b2230] pb-2.5 pr-10">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+      <DialogContent className="max-w-lg bg-[#0d1117] border border-[#21262d] p-5 shadow-2xl rounded-xl">
+        {/* Minimal Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-[#21262d]">
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
               <MessageSquareShare className="h-4 w-4 text-blue-400" />
-              <DialogTitle className="text-base text-white font-mono font-bold">
-                Daily Standup Update
+            </div>
+            <div>
+              <DialogTitle className="text-sm font-semibold text-white">
+                Daily Standup
               </DialogTitle>
-            </div>
-            <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
-              <span>Start: <strong className="text-slate-200">{meetingTime}</strong></span>
-              <span>•</span>
-              <span>Cutoff: <strong className={isPastCutoff ? 'text-rose-400' : 'text-amber-300'}>{cutoff}</strong></span>
+              <p className="text-[11px] text-slate-400">
+                Sync window: <span className="text-slate-200">{meetingTime} – {cutoff}</span>
+              </p>
             </div>
           </div>
-        </DialogHeader>
 
-        {/* Window State Banner */}
-        {isPastCutoff ? (
-          <div className="flex items-start gap-2 p-2.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-mono">
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
-            <div>
-              <span className="font-bold block">Cutoff Threshold Passed ({cutoff})</span>
-              <span className="text-[11px] text-rose-200/80">
-                Submission window closed at {cutoff}. Submissions now are marked as <strong>MISSED / ABSENT</strong>.
+          <div className="text-right">
+            {isPastCutoff ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                <AlertCircle className="h-3 w-3" /> Past Cutoff ({cutoff})
               </span>
-            </div>
-          </div>
-        ) : isBeforeStart ? (
-          <div className="flex items-start gap-2 p-2.5 rounded bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs font-mono">
-            <Clock className="h-4 w-4 shrink-0 mt-0.5 text-sky-400" />
-            <div>
-              <span className="font-bold block">Submission Window Locked (Opens at {meetingTime})</span>
-              <span className="text-[11px] text-sky-200/80">
-                The scheduled submission window is from <strong>{meetingTime}</strong> to <strong>{cutoff}</strong>. You cannot submit before {meetingTime}.
+            ) : isBeforeStart ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                <Lock className="h-3 w-3" /> Opens at {meetingTime}
               </span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-start gap-2 p-2.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono">
-            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
-            <div>
-              <span className="font-bold block">Submission Window is Active ({meetingTime} – {cutoff})</span>
-              <span className="text-[11px] text-emerald-200/80">
-                Please submit today's focus and pending works before the <strong>{cutoff}</strong> threshold.
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <CheckCircle2 className="h-3 w-3" /> Window Open
               </span>
-            </div>
+            )}
           </div>
-        )}
+        </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 pt-1 text-xs">
+        {/* Minimal Clean Form */}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-1">
+          {/* Field 1: Yesterday */}
           <div>
-            <label className="text-xs font-semibold text-slate-200 block mb-1">
-              1. Yesterday's Accomplishments & Pending Works
+            <label className="text-xs font-medium text-slate-200 block mb-1">
+              What did you accomplish yesterday? <span className="text-rose-400">*</span>
             </label>
             <Textarea
-              placeholder={isBeforeStart ? `Locked until ${meetingTime}...` : "e.g. Completed user profile API endpoints, ongoing database migrations..."}
+              placeholder={isBeforeStart ? `Locked until ${meetingTime}...` : "Briefly list completed tasks, PRs merged, tickets closed..."}
               rows={3}
               disabled={isBeforeStart}
               {...register('yesterday_work')}
-              className="bg-[#0b0e14] border-[#1b202c] text-xs text-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 rounded-lg"
             />
             {errors.yesterday_work && (
-              <p className="text-xs text-rose-400 mt-1 font-mono">{errors.yesterday_work.message}</p>
+              <p className="text-[11px] text-rose-400 mt-1">{errors.yesterday_work.message}</p>
             )}
           </div>
 
+          {/* Field 2: Today */}
           <div>
-            <label className="text-xs font-semibold text-slate-200 block mb-1">
-              2. Today's Planned Tasks & Deliverables
+            <label className="text-xs font-medium text-slate-200 block mb-1">
+              What will you work on today? <span className="text-rose-400">*</span>
             </label>
             <Textarea
-              placeholder={isBeforeStart ? `Locked until ${meetingTime}...` : "e.g. Implement Jira-style drag and drop Kanban, write unit tests..."}
+              placeholder={isBeforeStart ? `Locked until ${meetingTime}...` : "Key goals, features to build, items to review..."}
               rows={3}
               disabled={isBeforeStart}
               {...register('today_plan')}
-              className="bg-[#0b0e14] border-[#1b202c] text-xs text-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 rounded-lg"
             />
             {errors.today_plan && (
-              <p className="text-xs text-rose-400 mt-1 font-mono">{errors.today_plan.message}</p>
+              <p className="text-[11px] text-rose-400 mt-1">{errors.today_plan.message}</p>
             )}
           </div>
 
+          {/* Field 3: Blockers */}
           <div>
-            <label className="text-xs font-semibold text-slate-200 block mb-1">
-              3. Any Blockers, Dependencies or Obstacles?
+            <label className="text-xs font-medium text-slate-200 block mb-1">
+              Any blockers or dependencies?
             </label>
             <Textarea
-              placeholder={isBeforeStart ? `Locked until ${meetingTime}...` : "Type 'None' if fully unblocked, or describe what is holding you up..."}
+              placeholder={isBeforeStart ? `Locked until ${meetingTime}...` : "Type 'None' if clear, or describe what is blocking you..."}
               rows={2}
               disabled={isBeforeStart}
               {...register('blockers')}
-              className="bg-[#0b0e14] border-[#1b202c] text-xs text-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-[#161b22] border-[#30363d] text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 rounded-lg"
             />
           </div>
 
-          <DialogFooter className="pt-3 border-t border-[#1b202c] flex items-center justify-between sm:justify-between w-full">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setStandupModalOpen(false)}
-              className="h-8 text-xs border-[#232b3f] bg-[#141824] font-mono text-slate-200"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={isSubmitting || isBeforeStart}
-              className={`h-8 text-xs font-mono gap-1.5 ${
-                isBeforeStart
-                  ? 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-500 text-white'
-              }`}
-            >
-              {isBeforeStart ? (
-                <>
-                  <Clock className="h-3.5 w-3.5" />
-                  <span>Opens at {meetingTime}</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>{existingResponse ? 'Update Standup' : 'Submit Standup'}</span>
-                </>
-              )}
-            </Button>
+          {/* Footer Controls */}
+          <DialogFooter className="pt-3 border-t border-[#21262d] flex items-center justify-between sm:justify-between w-full">
+            <span className="text-[11px] text-slate-400">
+              Posting as <strong className="text-slate-200">{currentUser.full_name}</strong>
+            </span>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setStandupModalOpen(false)}
+                className="h-8 text-xs border-[#30363d] bg-[#161b22] hover:bg-[#21262d] text-slate-300"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isSubmitting || isBeforeStart}
+                className={`h-8 text-xs font-medium px-4 ${
+                  isBeforeStart
+                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                    : 'bg-blue-600 hover:bg-blue-500 text-white shadow-sm'
+                }`}
+              >
+                {isBeforeStart ? (
+                  <>
+                    <Clock className="h-3.5 w-3.5 mr-1" />
+                    Opens at {meetingTime}
+                  </>
+                ) : (
+                  existingResponse ? 'Update Standup' : 'Submit Standup'
+                )}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
 }
+
