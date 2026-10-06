@@ -103,7 +103,7 @@ function KanbanCard({
 }
 
 export function TasksPage() {
-  const { tasks, projects, profiles, updateTaskStatus, deleteTask, addTaskComment } = useDataStore();
+  const { tasks, projects, profiles, updateTask, updateTaskStatus, deleteTask, addTaskComment } = useDataStore();
   const { currentUser } = useAuthStore();
   const { setTaskModalOpen } = useUIStore();
 
@@ -393,61 +393,139 @@ export function TasksPage() {
       )}
 
       {/* Task Detail Modal */}
-      {activeDetailTask && (
-        <Dialog open={Boolean(activeDetailTask)} onOpenChange={() => setActiveDetailTask(null)}>
-          <DialogContent className="max-w-xl bg-[#0e1118] border-[#1f2533] p-5">
-            <DialogHeader>
-              <div className="flex items-center gap-2 mb-1 font-mono text-[10px]">
-                <span className="bg-[#181d28] px-1.5 py-0.5 rounded text-slate-300 border border-[#252c3c]">
-                  {projects.find((p) => p.id === activeDetailTask.project_id)?.code}
-                </span>
-                <span className={`px-1.5 py-0.5 rounded border uppercase ${getPriorityColor(activeDetailTask.priority).bg}`}>
-                  {activeDetailTask.priority}
-                </span>
-              </div>
-              <DialogTitle className="text-base text-white">{activeDetailTask.title}</DialogTitle>
-            </DialogHeader>
+      {activeDetailTask && (() => {
+        const currentTaskProject = projects.find((p) => p.id === activeDetailTask.project_id);
+        const isTaskProjectLead = currentTaskProject?.manager_id === currentUser.id;
+        const isLeadOrManager =
+          currentUser.role === 'super_admin' ||
+          currentUser.role === 'admin' ||
+          currentUser.role === 'manager' ||
+          isTaskProjectLead ||
+          Boolean(currentUser.designation_title?.toLowerCase().includes('lead')) ||
+          Boolean(currentUser.designation_title?.toLowerCase().includes('cto'));
 
-            <div className="space-y-3 pt-2 text-xs">
-              <p className="bg-[#0b0e14] p-3 rounded border border-[#1b202c] text-slate-300 leading-relaxed">
-                {activeDetailTask.description || 'No description entered.'}
-              </p>
+        return (
+          <Dialog open={Boolean(activeDetailTask)} onOpenChange={() => setActiveDetailTask(null)}>
+            <DialogContent className="max-w-xl bg-[#0e1118] border-[#1f2533] p-5">
+              <DialogHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 mb-1 font-mono text-[10px]">
+                    <span className="bg-[#181d28] px-1.5 py-0.5 rounded text-slate-300 border border-[#252c3c]">
+                      {currentTaskProject?.code || 'PROJECT'}
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded border uppercase ${getPriorityColor(activeDetailTask.priority).bg}`}>
+                      {activeDetailTask.priority}
+                    </span>
+                  </div>
 
-              <div className="grid grid-cols-3 gap-2 bg-[#0b0e14] p-2.5 rounded border border-[#1b202c] font-mono text-[11px]">
-                <div>
-                  <span className="text-slate-400 block text-[9px] uppercase">Assignee</span>
-                  <span className="text-slate-200">
-                    {profiles.find((p) => p.id === activeDetailTask.assignee_id)?.full_name || 'Unassigned'}
-                  </span>
+                  {isLeadOrManager && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        deleteTask(activeDetailTask.id);
+                        toast.success(`Task "${activeDetailTask.title}" deleted`);
+                        setActiveDetailTask(null);
+                      }}
+                      className="h-6 text-[10px] gap-1 border-rose-500/30 bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-400 font-mono"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      <span>Delete Task</span>
+                    </Button>
+                  )}
                 </div>
-                <div>
-                  <span className="text-slate-400 block text-[9px] uppercase">Due Date</span>
-                  <span className="text-slate-200">{formatDate(activeDetailTask.due_date)}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[9px] uppercase">Est / Act</span>
-                  <span className="text-slate-200">{activeDetailTask.estimated_hours}h / {activeDetailTask.actual_hours}h</span>
-                </div>
-              </div>
+                <DialogTitle className="text-base text-white">{activeDetailTask.title}</DialogTitle>
+              </DialogHeader>
 
-              {/* Status Selector */}
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] font-mono text-slate-400 uppercase">State:</span>
-                <select
-                  value={activeDetailTask.status}
-                  onChange={(e) => {
-                    updateTaskStatus(activeDetailTask.id, e.target.value as TaskStatus);
-                    setActiveDetailTask({ ...activeDetailTask, status: e.target.value as TaskStatus });
-                    toast.success('Task state updated');
-                  }}
-                  className="rounded border border-[#232b3c] bg-[#121620] px-2 py-1 text-xs text-white font-mono"
-                >
-                  <option value="todo">TO DO</option>
-                  <option value="in_progress">IN PROGRESS</option>
-                  <option value="review">IN REVIEW</option>
-                  <option value="done">COMPLETED</option>
-                </select>
-              </div>
+              <div className="space-y-3 pt-2 text-xs">
+                <p className="bg-[#0b0e14] p-3 rounded border border-[#1b202c] text-slate-300 leading-relaxed">
+                  {activeDetailTask.description || 'No description entered.'}
+                </p>
+
+                <div className="grid grid-cols-3 gap-2 bg-[#0b0e14] p-2.5 rounded border border-[#1b202c] font-mono text-[11px]">
+                  <div>
+                    <span className="text-slate-400 block text-[9px] uppercase mb-0.5">Assignee</span>
+                    {isLeadOrManager ? (
+                      <select
+                        value={activeDetailTask.assignee_id || ''}
+                        onChange={(e) => {
+                          const newAssigneeId = e.target.value;
+                          updateTask(activeDetailTask.id, { assignee_id: newAssigneeId });
+                          setActiveDetailTask({ ...activeDetailTask, assignee_id: newAssigneeId });
+                          const assigneeName = profiles.find((p) => p.id === newAssigneeId)?.full_name;
+                          toast.success(`Task assigned to ${assigneeName || 'team member'}`);
+                        }}
+                        className="bg-[#121620] border border-[#232b3c] text-slate-100 text-[10px] font-mono px-1 py-0.5 rounded-none max-w-[140px] truncate"
+                      >
+                        {profiles.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.full_name} ({p.designation_title || p.role.replace('_', ' ')})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-slate-200 truncate block">
+                        {profiles.find((p) => p.id === activeDetailTask.assignee_id)?.full_name || 'Unassigned'}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9px] uppercase mb-0.5">Due Date</span>
+                    <span className="text-slate-200 block pt-0.5">{formatDate(activeDetailTask.due_date)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9px] uppercase mb-0.5">Est / Act</span>
+                    <span className="text-slate-200 block pt-0.5">
+                      {activeDetailTask.estimated_hours}h / {activeDetailTask.actual_hours}h
+                    </span>
+                  </div>
+                </div>
+
+                {/* Status & Priority Selectors */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="flex items-center justify-between bg-[#0b0e14] p-2 border border-[#1b202c]">
+                    <span className="text-[10px] font-mono text-slate-400 uppercase">State:</span>
+                    <select
+                      value={activeDetailTask.status}
+                      onChange={(e) => {
+                        updateTaskStatus(activeDetailTask.id, e.target.value as TaskStatus);
+                        setActiveDetailTask({ ...activeDetailTask, status: e.target.value as TaskStatus });
+                        toast.success('Task state updated');
+                      }}
+                      className="rounded-none border border-[#232b3c] bg-[#121620] px-2 py-0.5 text-xs text-white font-mono"
+                    >
+                      <option value="todo">TO DO</option>
+                      <option value="in_progress">IN PROGRESS</option>
+                      <option value="review">IN REVIEW</option>
+                      <option value="done">COMPLETED</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center justify-between bg-[#0b0e14] p-2 border border-[#1b202c]">
+                    <span className="text-[10px] font-mono text-slate-400 uppercase">Priority:</span>
+                    {isLeadOrManager ? (
+                      <select
+                        value={activeDetailTask.priority}
+                        onChange={(e) => {
+                          const newPrio = e.target.value as any;
+                          updateTask(activeDetailTask.id, { priority: newPrio });
+                          setActiveDetailTask({ ...activeDetailTask, priority: newPrio });
+                          toast.success(`Priority set to ${newPrio.toUpperCase()}`);
+                        }}
+                        className="rounded-none border border-[#232b3c] bg-[#121620] px-2 py-0.5 text-xs text-white font-mono uppercase"
+                      >
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                      </select>
+                    ) : (
+                      <span className="text-xs font-mono uppercase text-slate-200">
+                        {activeDetailTask.priority}
+                      </span>
+                    )}
+                  </div>
+                </div>
 
               {/* Discussion Thread */}
               <div className="border-t border-[#1b202c] pt-3 space-y-2">

@@ -599,7 +599,7 @@ export function ProjectsPage() {
               </div>
               <div>
                 <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
-                  Lead Manager
+                  Project Lead (Any Team Member)
                 </label>
                 <select
                   value={managerId}
@@ -608,7 +608,7 @@ export function ProjectsPage() {
                 >
                   {profiles.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.full_name} ({p.role})
+                      {p.full_name} ({p.designation_title || p.role.replace('_', ' ')})
                     </option>
                   ))}
                 </select>
@@ -754,7 +754,9 @@ export function ProjectsPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">Lead Manager</label>
+                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                    Project Lead (Any Team Member)
+                  </label>
                   <select
                     value={editManagerId}
                     onChange={(e) => setEditManagerId(e.target.value)}
@@ -762,7 +764,7 @@ export function ProjectsPage() {
                   >
                     {profiles.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.full_name} ({p.role})
+                        {p.full_name} ({p.designation_title || p.role.replace('_', ' ')})
                       </option>
                     ))}
                   </select>

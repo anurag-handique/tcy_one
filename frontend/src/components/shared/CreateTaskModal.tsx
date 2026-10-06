@@ -122,7 +122,7 @@ export function CreateTaskModal() {
               >
                 {profiles.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.full_name} ({p.role})
+                    {p.full_name} ({p.designation_title || p.role.replace('_', ' ')})
                   </option>
                 ))}
               </select>
