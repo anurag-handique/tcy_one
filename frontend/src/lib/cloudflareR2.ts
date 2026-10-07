@@ -24,7 +24,7 @@ export function getStoredR2Config(): R2Config {
     accountId: '',
     accessKeyId: '',
     secretAccessKey: '',
-    bucketName: 'tcy-releases',
+    bucketName: 'tcy-one-releases',
     publicDomain: '',
   };
 }
