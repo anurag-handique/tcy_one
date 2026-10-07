@@ -20,6 +20,7 @@ import {
   Building,
   Radio,
   ArrowRight,
+  Coffee,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
@@ -30,6 +31,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Progress } from '@/components/ui/Progress';
 import { UserAvatar } from '@/components/ui/Avatar';
+import { WeeklyTimesheetBar } from '@/components/shared/WeeklyTimesheetBar';
 import { toast } from 'sonner';
 
 export function MyDayPage() {
@@ -38,6 +40,8 @@ export function MyDayPage() {
     attendance,
     clockIn,
     clockOut,
+    startBreak,
+    endBreak,
     tasks,
     updateTaskStatus,
     standups,
@@ -62,9 +66,25 @@ export function MyDayPage() {
     (a) => a.employee_id === currentUser.id && a.date === todayStr
   );
   const isClockedIn = Boolean(todayAttendance && !todayAttendance.clock_out);
+  const isShiftCompleted = Boolean(todayAttendance?.clock_in && todayAttendance?.clock_out);
+  const isOnBreak = Boolean(isClockedIn && todayAttendance?.break_start);
 
   const handlePunchToggle = () => {
+    if (isShiftCompleted) {
+      toast.info('Shift completed for today. Submit an Attendance Regularization request if you need timing adjustments.');
+      return;
+    }
     setPunchModalOpen(true, isClockedIn ? 'out' : 'in');
+  };
+
+  const handleStartBreak = () => {
+    startBreak(currentUser.id);
+    toast.success('☕ Break mode activated. Enjoy your break!');
+  };
+
+  const handleEndBreak = () => {
+    endBreak(currentUser.id);
+    toast.success('💻 Shift resumed. Welcome back!');
   };
 
   const myTasks = tasks.filter((t) => t.assignee_id === currentUser.id);
@@ -152,7 +172,7 @@ export function MyDayPage() {
                   +{todayAttendance.overtime_hours}h OT
                 </span>
               ) : null}
-              <Clock className="h-3.5 w-3.5 text-blue-400" />
+              <Clock className={`h-3.5 w-3.5 ${isOnBreak ? 'text-amber-400 animate-bounce' : isClockedIn ? 'text-emerald-400 animate-pulse' : 'text-blue-400'}`} />
             </div>
           </div>
           <div className="my-1 flex items-baseline justify-between">
@@ -161,20 +181,51 @@ export function MyDayPage() {
                 ? formatWorkingDuration(todayAttendance.clock_in, todayAttendance.clock_out)
                 : '0h 0m'}
             </span>
-            <button
-              onClick={handlePunchToggle}
-              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border transition-colors ${
-                isClockedIn
-                  ? 'bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white border-rose-600/30'
-                  : 'bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border-emerald-600/30'
-              }`}
-            >
-              {isClockedIn ? 'Punch Out' : 'Punch In'}
-            </button>
+            <div className="flex items-center gap-1">
+              {isClockedIn && (
+                isOnBreak ? (
+                  <button
+                    onClick={handleEndBreak}
+                    className="text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-amber-500/40 bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-black transition-all animate-pulse"
+                  >
+                    Resume
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStartBreak}
+                    className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-300/90 hover:bg-amber-500/20 transition-all"
+                  >
+                    Break
+                  </button>
+                )
+              )}
+
+              {isShiftCompleted ? (
+                <button
+                  disabled
+                  title="Shift completed for today."
+                  className="text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-slate-700 bg-slate-800/80 text-slate-400 cursor-not-allowed flex items-center gap-1"
+                >
+                  <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
+                  <span>Done</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handlePunchToggle}
+                  className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border transition-colors ${
+                    isClockedIn
+                      ? 'bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white border-rose-600/30'
+                      : 'bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border-emerald-600/30'
+                  }`}
+                >
+                  {isClockedIn ? 'Punch Out' : 'Punch In'}
+                </button>
+              )}
+            </div>
           </div>
           <div className="text-[10px] text-slate-400 flex justify-between pt-1 border-t border-[#1a1f2b] font-mono">
             <span>Shift: {attendancePolicy.office_start_time} - {attendancePolicy.office_end_time}</span>
-            <span>In: {todayAttendance?.clock_in ? formatTime(todayAttendance.clock_in) : '--:--'}</span>
+            <span>{todayAttendance?.break_minutes ? `${todayAttendance.break_minutes}m break` : `In: ${todayAttendance?.clock_in ? formatTime(todayAttendance.clock_in) : '--:--'}`}</span>
           </div>
         </div>
 
@@ -237,6 +288,9 @@ export function MyDayPage() {
           </div>
         </div>
       </div>
+
+      {/* 2.5. Weekly Timesheet Progress (40h Target Bar) */}
+      <WeeklyTimesheetBar employeeId={currentUser.id} targetWeeklyHours={40} />
 
       {/* 3. Main Split View: Left Assigned Tasks (7 cols) + Right Standup & Meetings (5 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">

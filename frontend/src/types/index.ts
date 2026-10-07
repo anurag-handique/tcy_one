@@ -8,7 +8,7 @@ export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
 export type PriorityLevel = 'low' | 'medium' | 'high' | 'urgent';
 export type MeetingStatus = 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
 export type ParticipantStatus = 'invited' | 'accepted' | 'declined' | 'tentative';
-export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'task' | 'leave' | 'standup' | 'meeting';
+export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'task' | 'leave' | 'standup' | 'meeting' | 'attendance' | 'sprint';
 
 export interface Department {
   id: string;
@@ -59,6 +59,8 @@ export interface Attendance {
   date: string;
   clock_in: string;
   clock_out?: string | null;
+  break_start?: string | null;
+  break_minutes?: number;
   total_hours: number;
   overtime_hours?: number;
   status: AttendanceStatus;
@@ -163,7 +165,19 @@ export interface TaskComment {
   created_at: string;
 }
 
-export type IssueType = 'story' | 'task' | 'bug' | 'epic';
+export interface TaskActivity {
+  id: string;
+  task_id: string;
+  user_id?: string;
+  user_name?: string;
+  employee_id?: string;
+  actor_name?: string;
+  details?: string;
+  action: string;
+  created_at: string;
+}
+
+export type IssueType = 'story' | 'task' | 'bug' | 'epic' | 'subtask' | 'improvement';
 
 export interface Subtask {
   id: string;
@@ -192,6 +206,7 @@ export interface Task {
   tags: string[];
   order_index: number;
   comments?: TaskComment[];
+  activity_log?: TaskActivity[];
   created_at: string;
   updated_at: string;
 }

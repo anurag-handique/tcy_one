@@ -33,6 +33,10 @@ import {
   Circle,
   ListChecks,
   User,
+  CornerDownRight,
+  TrendingUp,
+  Tag,
+  MessageSquare,
 } from 'lucide-react';
 import { useDataStore } from '@/stores/dataStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -45,10 +49,13 @@ import { UserAvatar } from '@/components/ui/Avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
+import { TeamCapacityHeatmap } from '@/components/shared/TeamCapacityHeatmap';
+import { TaskActivityAuditTrail } from '@/components/shared/TaskActivityAuditTrail';
+import { Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 type ViewMode = 'board' | 'grid' | 'list';
-type ProjectTab = 'tasks_board' | 'tasks_list' | 'overview';
+type ProjectTab = 'tasks_board' | 'tasks_list' | 'team_workload' | 'overview';
 
 export function ProjectsPage() {
   const {
@@ -353,11 +360,87 @@ export function ProjectsPage() {
     return colors[Math.abs(hash) % colors.length];
   };
 
-  // Authentic Jira Issue Type Icon Tile & Badge
-  const renderIssueTypeIcon = (type?: IssueType, showLabel: boolean = false, size: 'sm' | 'md' = 'sm') => {
-    const t = type || 'task';
+  // Drag and Drop States for Projects & Sprint Tasks
+  const [draggedProjectId, setDraggedProjectId] = React.useState<string | null>(null);
+  const [draggedOverProjectCol, setDraggedOverProjectCol] = React.useState<ProjectStatus | null>(null);
+  const [draggedTaskId, setDraggedTaskId] = React.useState<string | null>(null);
+  const [draggedOverTaskCol, setDraggedOverTaskCol] = React.useState<TaskStatus | null>(null);
 
-    const config = {
+  const handleProjectDragStart = (e: React.DragEvent, projId: string) => {
+    e.dataTransfer.setData('text/plain', projId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedProjectId(projId);
+  };
+
+  const handleProjectDragOver = (e: React.DragEvent, colId: ProjectStatus) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedOverProjectCol !== colId) {
+      setDraggedOverProjectCol(colId);
+    }
+  };
+
+  const handleProjectDragLeave = (e: React.DragEvent, colId: ProjectStatus) => {
+    if (draggedOverProjectCol === colId) {
+      setDraggedOverProjectCol(null);
+    }
+  };
+
+  const handleProjectDrop = (e: React.DragEvent, colId: ProjectStatus) => {
+    e.preventDefault();
+    const projId = e.dataTransfer.getData('text/plain') || draggedProjectId;
+    setDraggedProjectId(null);
+    setDraggedOverProjectCol(null);
+    if (!projId) return;
+
+    const proj = projects.find((p) => p.id === projId);
+    if (proj && proj.status !== colId) {
+      updateProject(projId, { status: colId });
+      const colName = STATUS_COLUMNS.find((c) => c.id === colId)?.label || colId;
+      toast.success(`Project moved to ${colName}`);
+    }
+  };
+
+  const handleTaskDragStart = (e: React.DragEvent, taskId: string) => {
+    e.dataTransfer.setData('text/plain', taskId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedTaskId(taskId);
+  };
+
+  const handleTaskDragOver = (e: React.DragEvent, colId: TaskStatus) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedOverTaskCol !== colId) {
+      setDraggedOverTaskCol(colId);
+    }
+  };
+
+  const handleTaskDragLeave = (e: React.DragEvent, colId: TaskStatus) => {
+    if (draggedOverTaskCol === colId) {
+      setDraggedOverTaskCol(null);
+    }
+  };
+
+  const handleTaskDrop = (e: React.DragEvent, colId: TaskStatus) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData('text/plain') || draggedTaskId;
+    setDraggedTaskId(null);
+    setDraggedOverTaskCol(null);
+    if (!taskId) return;
+
+    const task = tasks.find((t) => t.id === taskId);
+    if (task && task.status !== colId) {
+      updateTaskStatus(taskId, colId);
+      const colName = TASK_STATUS_COLUMNS.find((c) => c.id === colId)?.label || colId;
+      toast.success(`Issue moved to ${colName}`);
+    }
+  };
+
+  // Authentic Jira Issue Type Icon Tile & Badge (All 6 Types)
+  const renderIssueTypeIcon = (type?: IssueType, showLabel: boolean = false, size: 'sm' | 'md' = 'sm') => {
+    const t = (type || 'task').toLowerCase();
+
+    const configMap: Record<string, { label: string; bg: string; icon: React.ReactNode; badgeText: string; badgeBg: string }> = {
       story: {
         label: 'Story',
         bg: 'bg-[#00875A]', // Jira Story Green
@@ -386,8 +469,23 @@ export function ProjectsPage() {
         badgeText: 'text-purple-400',
         badgeBg: 'bg-purple-500/10 border-purple-500/30',
       },
-    }[t];
+      subtask: {
+        label: 'Subtask',
+        bg: 'bg-[#00A3BF]', // Jira Cyan
+        icon: <CornerDownRight className="h-2.5 w-2.5 text-white stroke-[2.5]" />,
+        badgeText: 'text-cyan-400',
+        badgeBg: 'bg-cyan-500/10 border-cyan-500/30',
+      },
+      improvement: {
+        label: 'Improvement',
+        bg: 'bg-[#FF8B00]', // Jira Orange
+        icon: <TrendingUp className="h-2.5 w-2.5 text-white stroke-[2.5]" />,
+        badgeText: 'text-orange-400',
+        badgeBg: 'bg-orange-500/10 border-orange-500/30',
+      },
+    };
 
+    const config = configMap[t] || configMap.task;
     const tileSize = size === 'sm' ? 'h-4 w-4 rounded-[3px]' : 'h-5 w-5 rounded-[4px]';
 
     return (
@@ -552,11 +650,19 @@ export function ProjectsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3.5 items-start">
           {STATUS_COLUMNS.map((col) => {
             const colProjects = filteredProjects.filter((p) => p.status === col.id);
+            const isOver = draggedOverProjectCol === col.id;
 
             return (
               <div
                 key={col.id}
-                className="bg-[#0a0d14] rounded-xl border border-[#1b202c] p-3 flex flex-col space-y-3 min-h-[420px]"
+                onDragOver={(e) => handleProjectDragOver(e, col.id)}
+                onDragLeave={(e) => handleProjectDragLeave(e, col.id)}
+                onDrop={(e) => handleProjectDrop(e, col.id)}
+                className={`rounded-xl border p-3 flex flex-col space-y-3 min-h-[420px] transition-all duration-200 ${
+                  isOver
+                    ? 'bg-[#101726] border-blue-500/70 ring-2 ring-blue-500/30 shadow-lg'
+                    : 'bg-[#0a0d14] border-[#1b202c]'
+                }`}
               >
                 {/* Column Header */}
                 <div className="flex items-center justify-between pb-2 border-b border-[#161b26]">
@@ -573,8 +679,10 @@ export function ProjectsPage() {
                 {/* Column Cards */}
                 <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[calc(100vh-280px)] pr-0.5">
                   {colProjects.length === 0 ? (
-                    <div className="py-12 text-center text-slate-500 text-xs font-mono border border-dashed border-[#1a1f2c] rounded-lg">
-                      No projects in {col.label.toLowerCase()}
+                    <div className={`py-12 text-center text-slate-500 text-xs font-mono border border-dashed rounded-lg transition-colors ${
+                      isOver ? 'border-blue-500/50 bg-blue-500/5 text-blue-300' : 'border-[#1a1f2c]'
+                    }`}>
+                      {isOver ? 'Drop project here' : `No projects in ${col.label.toLowerCase()}`}
                     </div>
                   ) : (
                     colProjects.map((proj) => {
@@ -592,11 +700,17 @@ export function ProjectsPage() {
                         0
                       );
 
+                      const isBeingDragged = draggedProjectId === proj.id;
+
                       return (
                         <div
                           key={proj.id}
+                          draggable
+                          onDragStart={(e) => handleProjectDragStart(e, proj.id)}
                           onClick={() => setSelectedProject(proj)}
-                          className="bg-[#0f131d] hover:bg-[#131824] rounded-xl p-3.5 border border-[#1e2536] hover:border-blue-500/50 transition-all cursor-pointer shadow-sm group space-y-3"
+                          className={`bg-[#0f131d] hover:bg-[#131824] rounded-xl p-3.5 border border-[#1e2536] hover:border-blue-500/50 transition-all cursor-grab active:cursor-grabbing shadow-sm group space-y-3 select-none ${
+                            isBeingDragged ? 'opacity-30 scale-95 ring-2 ring-blue-500/50' : ''
+                          }`}
                         >
                           {/* Top: Key + Priority + Quick Edit */}
                           <div className="flex items-center justify-between gap-2">
@@ -881,7 +995,7 @@ export function ProjectsPage() {
       {/* ========================================================================= */}
       {selectedProject && (
         <Dialog open={Boolean(selectedProject)} onOpenChange={() => setSelectedProject(null)}>
-          <DialogContent className="max-w-5xl bg-[#0a0d14] border border-[#21262d] p-5 shadow-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-5xl bg-[#0a0d14] border border-[#21262d] p-5 shadow-2xl rounded-2xl max-h-[90vh] overflow-y-auto" hideCloseButton>
             {/* Jira Project Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-[#21262d]">
               <div>
@@ -935,6 +1049,15 @@ export function ProjectsPage() {
                     <span>Edit</span>
                   </Button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedProject(null)}
+                  className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-[#1f2637] transition-colors ml-1"
+                  title="Close Workspace"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             </div>
 
@@ -963,6 +1086,17 @@ export function ProjectsPage() {
                 <span>Backlog & Issues ({tasks.filter((t) => t.project_id === selectedProject.id).length})</span>
               </button>
               <button
+                onClick={() => setProjectTab('team_workload')}
+                className={`px-3 py-1.5 text-xs font-mono border-b-2 transition-all flex items-center gap-1.5 ${
+                  projectTab === 'team_workload'
+                    ? 'border-blue-500 text-blue-400 font-bold'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Users className="h-3.5 w-3.5" />
+                <span>Team Capacity Heatmap</span>
+              </button>
+              <button
                 onClick={() => setProjectTab('overview')}
                 className={`px-3 py-1.5 text-xs font-mono border-b-2 transition-all flex items-center gap-1.5 ${
                   projectTab === 'overview'
@@ -983,27 +1117,37 @@ export function ProjectsPage() {
                     const colTasks = tasks.filter(
                       (t) => t.project_id === selectedProject.id && t.status === col.id
                     );
+                    const isOver = draggedOverTaskCol === col.id;
 
                     return (
                       <div
                         key={col.id}
-                        className="bg-[#0e121a] rounded-xl border border-[#1b202c] p-2.5 space-y-2 min-h-[300px] flex flex-col"
+                        onDragOver={(e) => handleTaskDragOver(e, col.id)}
+                        onDragLeave={(e) => handleTaskDragLeave(e, col.id)}
+                        onDrop={(e) => handleTaskDrop(e, col.id)}
+                        className={`rounded-xl border p-2.5 space-y-2 min-h-[340px] flex flex-col transition-all duration-200 ${
+                          isOver
+                            ? 'bg-[#121929] border-blue-500/70 ring-2 ring-blue-500/30 shadow-lg'
+                            : 'bg-[#0e121a] border-[#1b202c]'
+                        }`}
                       >
                         {/* Header */}
                         <div className="flex items-center justify-between pb-1.5 border-b border-[#161b26]">
-                          <span className={`text-[11px] font-mono font-bold ${col.color}`}>
+                          <span className={`text-[11px] font-mono font-bold uppercase tracking-wider ${col.color}`}>
                             {col.label}
                           </span>
-                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#161c28] text-slate-400 font-bold">
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-[#161c28] text-slate-300 font-bold border border-[#22293a]">
                             {colTasks.length}
                           </span>
                         </div>
 
                         {/* Task Cards */}
-                        <div className="space-y-2 flex-1 overflow-y-auto max-h-[380px]">
+                        <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[460px] pr-0.5">
                           {colTasks.length === 0 ? (
-                            <div className="py-8 text-center text-slate-600 text-[11px] font-mono">
-                              No issues
+                            <div className={`py-10 text-center text-xs font-mono border border-dashed rounded-lg transition-colors ${
+                              isOver ? 'border-blue-500/50 bg-blue-500/5 text-blue-300' : 'border-[#1b202c] text-slate-500'
+                            }`}>
+                              {isOver ? 'Drop issue here' : 'No issues'}
                             </div>
                           ) : (
                             colTasks.map((task) => {
@@ -1011,68 +1155,106 @@ export function ProjectsPage() {
                               const prio = getPriorityColor(task.priority);
                               const subtasks = task.subtasks || [];
                               const completedSubtasks = subtasks.filter((s) => s.completed).length;
+                              const isBeingDragged = draggedTaskId === task.id;
+                              const isDone = task.status === 'done';
 
                               return (
                                 <div
                                   key={task.id}
+                                  draggable
+                                  onDragStart={(e) => handleTaskDragStart(e, task.id)}
                                   onClick={() => setSelectedTask(task)}
-                                  className="bg-[#121622] hover:bg-[#161b2a] rounded-xl p-3 border border-[#1f2638] hover:border-blue-500/50 space-y-2.5 transition-all shadow-sm group cursor-pointer"
+                                  className={`bg-[#121622] hover:bg-[#161b2a] rounded-xl p-3 border border-[#1f2638] hover:border-blue-500/50 space-y-2.5 transition-all shadow-sm group cursor-grab active:cursor-grabbing select-none ${
+                                    isBeingDragged ? 'opacity-30 scale-95 ring-2 ring-blue-500/50' : ''
+                                  } ${isDone ? 'border-l-4 border-l-emerald-500' : ''}`}
                                 >
-                                  {/* Top: Issue Type + Key + Priority */}
+                                  {/* Top: Issue Type + Key + Priority + Due Date */}
                                   <div className="flex items-center justify-between gap-1">
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1.5 min-w-0">
                                       {renderIssueTypeIcon(task.type)}
-                                      <span className="text-[9px] font-mono text-blue-400 font-bold">
+                                      <span className="text-[10px] font-mono text-blue-400 font-bold truncate">
                                         {selectedProject.code}-{task.id.slice(0, 4)}
                                       </span>
                                     </div>
 
-                                    <span className={`text-[8px] font-mono px-1.5 py-0.2 rounded-full border uppercase ${prio.bg}`}>
-                                      {task.priority}
-                                    </span>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {task.due_date && (
+                                        <span className="text-[9px] font-mono text-slate-400 flex items-center gap-0.5 bg-[#0a0d14] px-1.5 py-0.5 rounded border border-[#1e2536]">
+                                          <Calendar className="h-2.5 w-2.5" />
+                                          {formatDate(task.due_date, 'dd MMM')}
+                                        </span>
+                                      )}
+                                      <span className={`text-[8px] font-mono px-1.5 py-0.5 rounded-full border uppercase font-bold ${prio.bg}`}>
+                                        {task.priority}
+                                      </span>
+                                    </div>
                                   </div>
 
                                   {/* Title */}
-                                  <p className="text-xs font-semibold text-slate-100 leading-snug line-clamp-2">
+                                  <p className={`text-xs font-semibold leading-snug line-clamp-2 ${
+                                    isDone ? 'line-through text-slate-400' : 'text-slate-100 group-hover:text-white'
+                                  }`}>
                                     {task.title}
                                   </p>
 
-                                  {/* Subtasks Progress Badge if any */}
-                                  {subtasks.length > 0 && (
-                                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400 bg-[#0c1018] px-2 py-0.5 rounded-full border border-[#1b2230] w-fit">
-                                      <ListChecks className="h-3 w-3 text-blue-400" />
-                                      <span>
-                                        {completedSubtasks}/{subtasks.length} subtasks
-                                      </span>
+                                  {/* Tags / Labels */}
+                                  {task.tags && task.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {task.tags.slice(0, 3).map((tag, idx) => (
+                                        <span
+                                          key={idx}
+                                          className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#161c28] border border-[#242c3d] text-slate-300"
+                                        >
+                                          {tag}
+                                        </span>
+                                      ))}
                                     </div>
                                   )}
 
-                                  {/* Footer: Assignee + Quick Status dropdown */}
+                                  {/* Footer: Assignee + Subtasks count + Comments/Estimate + Quick Status dropdown */}
                                   <div className="flex items-center justify-between pt-1.5 border-t border-[#1a2130] text-[10px] font-mono text-slate-400">
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1.5 min-w-0">
                                       <UserAvatar
                                         name={assignee?.full_name || 'Member'}
                                         avatarUrl={assignee?.avatar_url}
                                         size="sm"
                                         className="h-5 w-5 text-[8px] rounded-full border border-slate-700"
                                       />
-                                      <span className="truncate max-w-[70px] text-slate-300">
+                                      <span className="truncate max-w-[65px] text-slate-300">
                                         {assignee?.full_name?.split(' ')[0] || 'Unassigned'}
                                       </span>
                                     </div>
 
-                                    {/* Inline Status Dropdown */}
-                                    <select
-                                      value={task.status}
-                                      onClick={(e) => e.stopPropagation()}
-                                      onChange={(e) => updateTaskStatus(task.id, e.target.value as TaskStatus)}
-                                      className="bg-[#0a0d14] border border-[#1f2637] rounded-full px-1.5 py-0.5 text-[9px] font-mono text-slate-200 focus:outline-none focus:border-blue-500"
-                                    >
-                                      <option value="todo">TO DO</option>
-                                      <option value="in_progress">IN PROGRESS</option>
-                                      <option value="review">REVIEW</option>
-                                      <option value="done">DONE</option>
-                                    </select>
+                                    <div className="flex items-center gap-1.5">
+                                      {subtasks.length > 0 && (
+                                        <span
+                                          className="flex items-center gap-0.5 text-[9px] font-mono text-slate-400 bg-[#0c1018] px-1.5 py-0.5 rounded border border-[#1b2230]"
+                                          title={`${completedSubtasks}/${subtasks.length} subtasks completed`}
+                                        >
+                                          <ListChecks className="h-2.5 w-2.5 text-blue-400" />
+                                          <span>{completedSubtasks}/{subtasks.length}</span>
+                                        </span>
+                                      )}
+
+                                      {task.estimated_hours ? (
+                                        <span className="text-[9px] font-mono bg-[#0c1018] px-1 py-0.5 rounded border border-[#1b2230] text-slate-400" title={`${task.estimated_hours}h estimate`}>
+                                          {task.estimated_hours}h
+                                        </span>
+                                      ) : null}
+
+                                      {/* Inline Status Dropdown */}
+                                      <select
+                                        value={task.status}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={(e) => updateTaskStatus(task.id, e.target.value as TaskStatus)}
+                                        className="bg-[#0a0d14] border border-[#1f2637] rounded-full px-1.5 py-0.5 text-[9px] font-mono text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer"
+                                      >
+                                        <option value="todo">TO DO</option>
+                                        <option value="in_progress">IN PROGRESS</option>
+                                        <option value="review">REVIEW</option>
+                                        <option value="done">DONE</option>
+                                      </select>
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -1188,6 +1370,13 @@ export function ProjectsPage() {
               </div>
             )}
 
+            {/* TAB CONTENT: Team Workload & Sprint Capacity Heatmap */}
+            {projectTab === 'team_workload' && (
+              <div className="pt-3">
+                <TeamCapacityHeatmap projectId={selectedProject.id} />
+              </div>
+            )}
+
             {/* TAB CONTENT: Overview & Scope */}
             {projectTab === 'overview' && (
               <div className="pt-3 space-y-3 text-xs">
@@ -1274,49 +1463,60 @@ export function ProjectsPage() {
       {/* ========================================================================= */}
       {selectedTask && (
         <Dialog open={Boolean(selectedTask)} onOpenChange={() => setSelectedTask(null)}>
-          <DialogContent className="max-w-xl bg-[#0a0d14] border border-[#21262d] p-5 shadow-2xl rounded-2xl max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl lg:max-w-3xl w-[94vw] bg-[#0a0d14] border border-[#21262d] p-6 shadow-2xl rounded-2xl max-h-[88vh] overflow-y-auto" hideCloseButton>
             {/* Header: Type + Key + Priority */}
-            <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#21262d]">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-3 pb-3 border-b border-[#21262d]">
+              <div className="flex items-center gap-2 min-w-0">
                 {renderIssueTypeIcon(selectedTask.type, true, 'md')}
-                <span className="font-mono text-xs font-bold text-blue-400">
+                <span className="font-mono text-xs font-bold text-blue-400 truncate">
                   {selectedProject?.code || 'ISSUE'}-{selectedTask.id.slice(0, 4)}
                 </span>
-                <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border uppercase font-bold ${getPriorityColor(selectedTask.priority).bg}`}>
+                <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border uppercase font-bold shrink-0 ${getPriorityColor(selectedTask.priority).bg}`}>
                   {selectedTask.priority}
                 </span>
               </div>
 
-              <select
-                value={selectedTask.status}
-                onChange={(e) => {
-                  const newStat = e.target.value as TaskStatus;
-                  updateTaskStatus(selectedTask.id, newStat);
-                  setSelectedTask({ ...selectedTask, status: newStat });
-                }}
-                className="bg-[#121622] border border-[#22293a] rounded-full px-2.5 py-1 text-xs font-mono text-slate-200 focus:outline-none focus:border-blue-500"
-              >
-                <option value="todo">TO DO</option>
-                <option value="in_progress">IN PROGRESS</option>
-                <option value="review">IN REVIEW</option>
-                <option value="done">DONE</option>
-              </select>
+              <div className="flex items-center gap-2 shrink-0">
+                <select
+                  value={selectedTask.status}
+                  onChange={(e) => {
+                    const newStat = e.target.value as TaskStatus;
+                    updateTaskStatus(selectedTask.id, newStat);
+                    setSelectedTask({ ...selectedTask, status: newStat });
+                  }}
+                  className="bg-[#121622] border border-[#22293a] rounded-full px-2.5 py-1 text-xs font-mono text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer"
+                >
+                  <option value="todo">TO DO</option>
+                  <option value="in_progress">IN PROGRESS</option>
+                  <option value="review">IN REVIEW</option>
+                  <option value="done">DONE</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedTask(null)}
+                  className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-[#1f2637] transition-colors"
+                  title="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             {/* Task Title & Description */}
             <div className="space-y-3 pt-2">
-              <DialogTitle className="text-base font-bold text-white leading-snug">
+              <DialogTitle className="text-lg font-bold text-white leading-snug">
                 {selectedTask.title}
               </DialogTitle>
 
               {selectedTask.description && (
-                <div className="p-3 rounded-xl bg-[#0e121a] border border-[#1b202c] text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+                <div className="p-3.5 rounded-xl bg-[#0e121a] border border-[#1b202c] text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
                   {selectedTask.description}
                 </div>
               )}
 
               {/* Assignee & Reporter Grid */}
-              <div className="grid grid-cols-2 gap-2.5 p-2.5 rounded-xl bg-[#0e121a] border border-[#1b202c] text-xs font-mono">
+              <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-[#0e121a] border border-[#1b202c] text-xs font-mono">
                 <div>
                   <span className="text-[10px] text-slate-500 uppercase block">Assignee</span>
                   <div className="flex items-center gap-2 mt-1">
@@ -1351,15 +1551,15 @@ export function ProjectsPage() {
               {/* ============================================================= */}
               {/* SUBTASKS SECTION */}
               {/* ============================================================= */}
-              <div className="space-y-2.5 pt-2">
+              <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-200">
+                  <div className="flex items-center gap-2 text-xs font-mono font-bold text-slate-200">
                     <ListChecks className="h-4 w-4 text-blue-400" />
                     <span>Subtasks ({selectedTask.subtasks?.length || 0})</span>
                   </div>
 
                   {selectedTask.subtasks && selectedTask.subtasks.length > 0 && (
-                    <span className="text-[11px] font-mono text-slate-400">
+                    <span className="text-[11px] font-mono text-slate-300 bg-[#161c28] px-2.5 py-0.5 rounded-full border border-[#232c3f]">
                       {selectedTask.subtasks.filter((s) => s.completed).length} of {selectedTask.subtasks.length} completed
                     </span>
                   )}
@@ -1372,12 +1572,12 @@ export function ProjectsPage() {
                       (selectedTask.subtasks.filter((s) => s.completed).length / selectedTask.subtasks.length) * 100
                     )}
                     indicatorColor="bg-emerald-500"
-                    className="h-1.5 rounded-full bg-[#161c28]"
+                    className="h-2 rounded-full bg-[#161c28]"
                   />
                 )}
 
                 {/* Subtasks Checklist */}
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
                   {selectedTask.subtasks?.map((subtask) => (
                     <div
                       key={subtask.id}
@@ -1437,6 +1637,11 @@ export function ProjectsPage() {
                     </Button>
                   </div>
                 </div>
+              </div>
+
+              {/* Task & Sprint Activity Audit Trail */}
+              <div className="pt-2 border-t border-[#1b2230]">
+                <TaskActivityAuditTrail task={selectedTask} />
               </div>
             </div>
 

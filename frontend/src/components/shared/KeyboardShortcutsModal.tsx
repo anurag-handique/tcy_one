@@ -31,7 +31,6 @@ export function KeyboardShortcutsModal() {
       title: 'Global Actions',
       items: [
         { keys: [modKey, 'K'], label: 'Open Command Palette', icon: Command },
-        { keys: [modKey, 'B'], label: 'Toggle Sidebar', icon: PanelLeft },
         { keys: ['?'], label: 'Keyboard Shortcuts Cheat Sheet', icon: Keyboard },
       ],
     },

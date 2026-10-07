@@ -24,17 +24,36 @@ import {
   Type,
   Gauge,
   Sliders,
+  Bell,
+  Volume2,
+  Download,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useUIStore, DensityMode, ThemePreset, AccentColor, FontFamily } from '@/stores/uiStore';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { formatDate, isSaturdayOffDay, cn } from '@/lib/utils';
+import {
+  getDesktopNotificationPermission,
+  requestDesktopNotificationPermission,
+  sendNativeNotification,
+} from '@/lib/desktopNotification';
+
+import {
+  detectClientPlatform,
+  isWebPushSupported,
+  getActivePushSubscription,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from '@/lib/webPush';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { toast } from 'sonner';
 
+
 type SettingsTab =
   | 'attendance'
+  | 'notifications'
   | 'saturdays'
   | 'density'
   | 'appearance'
@@ -102,7 +121,53 @@ export function SettingsPage() {
     setSaturdayOffRule(attendancePolicy.saturday_off_rule || '3rd_4th');
   }, [attendancePolicy]);
 
+  // PWA & Web Push State
+  const { isInstallable, isInstalled, installApp } = usePWAInstall();
+  const [isPushSubscribed, setIsPushSubscribed] = React.useState(false);
+  const [isSubscribing, setIsSubscribing] = React.useState(false);
+  const [detectedPlatform, setDetectedPlatform] = React.useState<string>('windows');
+  const [pushSupported, setPushSupported] = React.useState(true);
+
+
+  React.useEffect(() => {
+    setDetectedPlatform(detectClientPlatform());
+    setPushSupported(isWebPushSupported());
+    getActivePushSubscription().then((sub) => {
+      setIsPushSubscribed(!!sub);
+    });
+  }, []);
+
+  const handleToggleWebPush = async () => {
+    if (!currentUser) {
+      toast.error('Please sign in to register device push subscription.');
+      return;
+    }
+    setIsSubscribing(true);
+    try {
+      if (isPushSubscribed) {
+        const res = await unsubscribeFromPush();
+        if (res.success) {
+          setIsPushSubscribed(false);
+          toast.success('Device unsubscribed from push notifications.');
+        } else {
+          toast.error(res.error || 'Failed to unsubscribe.');
+        }
+      } else {
+        const res = await subscribeToPush(currentUser.id);
+        if (res.success) {
+          setIsPushSubscribed(true);
+          toast.success('Device successfully enrolled in OS Desktop Web Push!');
+        } else {
+          toast.error(res.error || 'Failed to subscribe.');
+        }
+      }
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
   const handleSavePolicy = (e: React.FormEvent) => {
+
     e.preventDefault();
     updateAttendancePolicy({
       office_start_time: officeStartTime,
@@ -206,6 +271,20 @@ export function SettingsPage() {
         >
           <Clock className="h-3 w-3" />
           <span>Shifts & Timings</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('notifications')}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
+            activeTab === 'notifications'
+              ? 'tab-active'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
+          )}
+        >
+          <Bell className="h-3 w-3 text-blue-400" />
+          <span>Realtime & OS Alerts</span>
         </button>
 
         <button
@@ -471,6 +550,256 @@ export function SettingsPage() {
           </div>
         </form>
       )}
+
+      {/* ===================================================================== */}
+      {/* TAB: REALTIME & OS NOTIFICATION SETTINGS */}
+      {/* ===================================================================== */}
+      {activeTab === 'notifications' && (
+        <div className="space-y-4">
+          {/* 1. Native Desktop OS Notifications Station */}
+          <div className="border border-[#1b2230] bg-[#0c1018] p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#18202d] pb-2.5">
+              <div className="flex items-center gap-2">
+                <Monitor className="h-4 w-4 text-blue-400" />
+                <div>
+                  <span className="text-xs font-bold font-mono uppercase text-white block">
+                    Windows & macOS Desktop System Alerts
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Native OS banner notifications with sound cues for attendance, tickets, and sprints
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono px-2 py-0.5 border bg-[#121622] text-slate-300 border-[#222837] uppercase">
+                  OS: {detectedPlatform.toUpperCase()}
+                </span>
+                <span
+                  className={cn(
+                    'text-[10px] font-mono px-2 py-0.5 border font-semibold',
+                    getDesktopNotificationPermission() === 'granted'
+                      ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                      : getDesktopNotificationPermission() === 'denied'
+                      ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                      : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                  )}
+                >
+                  STATUS: {getDesktopNotificationPermission().toUpperCase()}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              <div className="p-3 bg-[#080b11] border border-[#171e2c] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-white">Browser Permission</span>
+                  <Volume2 className="h-3.5 w-3.5 text-blue-400" />
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Allows TCY One to send real-time alerts to the Windows Action Center or macOS Notification Center even when your browser tab is minimized.
+                </p>
+                <div className="pt-1 flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={async () => {
+                      const res = await requestDesktopNotificationPermission();
+                      if (res === 'granted') toast.success('OS Desktop notifications granted!');
+                      else toast.error(`Permission: ${res}`);
+                    }}
+                    className="h-7 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-3 rounded-none"
+                  >
+                    Request / Check Permission
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      const res = await sendNativeNotification('🔔 TCY One Desktop Alert', {
+                        body: 'Testing Windows Action Center & macOS banner delivery.',
+                        onClickUrl: '/settings',
+                        requireInteraction: true,
+                      });
+                      if (res) {
+                        toast.success('Test notification dispatched to Windows Action Center!');
+                      } else {
+                        toast.error('Notification blocked. Please allow notifications in browser/OS settings.');
+                      }
+                    }}
+                    className="h-7 text-xs border-[#222837] bg-[#121622] hover:bg-[#181d28] text-slate-300 font-mono"
+                  >
+                    Send Test Notification
+                  </Button>
+                </div>
+              </div>
+
+
+              <div className="p-3 bg-[#080b11] border border-[#171e2c] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-white">Audio Chime Synthesis</span>
+                  <Zap className="h-3.5 w-3.5 text-yellow-400" />
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Integrated dual-tone harmonic chime synthesised via Web Audio API. Provides audio feedback on punches and task assignments.
+                </p>
+                <div className="pt-1">
+                  <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 border border-emerald-500/20">
+                    Active • Web Audio Enabled
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. W3C Web Push & Service Worker Background Delivery */}
+          <div className="border border-[#1b2230] bg-[#0c1018] p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#18202d] pb-2.5">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-emerald-400" />
+                <div>
+                  <span className="text-xs font-bold font-mono uppercase text-white block">
+                    W3C Web Push & Service Worker Subscription
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Direct background push delivery via VAPID keys to FCM (Windows) & APNs (macOS Safari 16+)
+                  </span>
+                </div>
+              </div>
+              <span
+                className={cn(
+                  'text-[10px] font-mono px-2 py-0.5 border font-semibold',
+                  isPushSubscribed
+                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                )}
+              >
+                {isPushSubscribed ? 'ENROLLED & ACTIVE' : 'NOT SUBSCRIBED'}
+              </span>
+            </div>
+
+            <div className="p-3 bg-[#080b11] border border-[#171e2c] space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-semibold text-slate-200 block">
+                    Background Push Subscription Token
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Registers this {detectedPlatform.toUpperCase()} device into the Supabase <code className="text-blue-400 font-mono">push_subscriptions</code> table for instant background delivery.
+                  </span>
+                </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isSubscribing || !pushSupported}
+                  onClick={handleToggleWebPush}
+                  className={cn(
+                    'h-7 text-xs font-mono font-medium px-4 rounded-none transition-all',
+                    isPushSubscribed
+                      ? 'bg-rose-900/60 hover:bg-rose-900 text-rose-200 border border-rose-700/50'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  )}
+                >
+                  {isSubscribing
+                    ? 'Processing...'
+                    : isPushSubscribed
+                    ? 'Unsubscribe Device'
+                    : `Subscribe This ${detectedPlatform === 'macos' ? 'Mac' : 'Windows'} Device`}
+                </Button>
+              </div>
+
+              <div className="pt-2 border-t border-[#141925] flex flex-wrap items-center gap-3 text-[10px] font-mono text-slate-400">
+                <span className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full"></span>
+                  Service Worker: <strong className="text-slate-200">/sw.js (Ready)</strong>
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  Protocol: <strong className="text-slate-200">W3C Push API / RFC 8291</strong>
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  Encryption: <strong className="text-slate-200">ECDH (P-256 + VAPID)</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Progressive Web App (PWA) Desktop Client Station */}
+          <div className="border border-[#1b2230] bg-[#0c1018] p-4 space-y-3">
+
+            <div className="flex items-center justify-between border-b border-[#18202d] pb-2.5">
+              <div className="flex items-center gap-2">
+                <Download className="h-4 w-4 text-blue-400" />
+                <div>
+                  <span className="text-xs font-bold font-mono uppercase text-white block">
+                    Progressive Web App (PWA) Desktop Client
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Install TCY One as a native standalone desktop app on Windows 10/11 or macOS Dock
+                  </span>
+                </div>
+              </div>
+              <span
+                className={cn(
+                  'text-[10px] font-mono px-2 py-0.5 border font-semibold',
+                  isInstalled
+                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                    : isInstallable
+                    ? 'bg-blue-500/10 text-blue-300 border-blue-500/30'
+                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                )}
+              >
+                {isInstalled ? 'INSTALLED (STANDALONE)' : isInstallable ? 'READY TO INSTALL' : 'BROWSER MODE'}
+              </span>
+            </div>
+
+            <div className="p-3 bg-[#080b11] border border-[#171e2c] space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-semibold text-slate-200 block">
+                    Native Desktop Experience & Offline Caching
+                  </span>
+                  <p className="text-[11px] text-slate-400 leading-normal">
+                    Running as an installed PWA provides native window controls, dedicated dock/taskbar icons, instant offline cache fallback, and system startup integration.
+                  </p>
+                </div>
+
+                {isInstallable && !isInstalled && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={installApp}
+                    className="h-7 text-xs font-mono font-medium px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-none whitespace-nowrap"
+                  >
+                    Install TCY One App
+                  </Button>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-[#141925] flex flex-wrap items-center gap-3 text-[10px] font-mono text-slate-400">
+                <span className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full"></span>
+                  Manifest: <strong className="text-slate-200">/manifest.json</strong>
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  Display: <strong className="text-slate-200">Standalone Window</strong>
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  Offline Fallback: <strong className="text-slate-200">Enabled (Cache-First)</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      )}
+
+
 
       {/* ===================================================================== */}
       {/* TAB 2: SATURDAY POLICY & OVERRIDES */}
@@ -987,7 +1316,6 @@ export function SettingsPage() {
                 <div className="space-y-1.5 text-xs font-mono">
                   {[
                     { keys: [modKey, 'K'], label: 'Command Palette & Search', action: () => useUIStore.getState().setCommandPaletteOpen(true) },
-                    { keys: [modKey, 'B'], label: 'Toggle Sidebar Collapse', action: toggleSidebar },
                     { keys: ['?'], label: 'Shortcuts Cheat Sheet', action: () => setShortcutsModalOpen(true) },
                     { keys: [modKey, 'Shift', 'P'], label: 'Punch In / Clock Out', action: () => setPunchModalOpen(true) },
                     { keys: [modKey, 'Shift', 'T'], label: 'Create New Task', action: () => setTaskModalOpen(true) },

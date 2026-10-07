@@ -21,11 +21,14 @@ import {
   WorkMode,
   UserRole,
   ParticipantStatus,
+  TaskActivity,
 } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { sendNativeNotification } from '../lib/desktopNotification';
 import {
   INITIAL_PROFILES,
   INITIAL_DEPARTMENTS,
+
   INITIAL_DESIGNATIONS,
   INITIAL_ATTENDANCE,
   INITIAL_LEAVE_TYPES,
@@ -101,15 +104,18 @@ interface DataState {
   toggleWorkingSaturdayOverride: (dateStr: string) => void;
   clockIn: (employeeId: string, workMode: WorkMode, notes?: string, location?: string) => Attendance;
   clockOut: (employeeId: string, location?: string, notes?: string) => Attendance | null;
+  startBreak: (employeeId: string) => void;
+  endBreak: (employeeId: string) => void;
   requestAttendanceCorrection: (correction: Omit<AttendanceCorrection, 'id' | 'created_at' | 'updated_at' | 'status'>) => void;
   reviewAttendanceCorrection: (id: string, status: 'approved' | 'rejected', reviewerId: string, note?: string) => void;
 
   // Task Actions
   createTask: (task: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'order_index'>) => Task;
-  updateTask: (id: string, updates: Partial<Task>) => void;
-  updateTaskStatus: (id: string, status: TaskStatus) => void;
+  updateTask: (id: string, updates: Partial<Task>, currentUserId?: string, currentUserName?: string) => void;
+  updateTaskStatus: (id: string, status: TaskStatus, currentUserId?: string, currentUserName?: string) => void;
   deleteTask: (id: string) => void;
   addTaskComment: (taskId: string, employeeId: string, comment: string) => void;
+  logTaskActivity: (taskId: string, action: string, userId?: string, userName?: string) => void;
 
   // Leave Actions
   applyLeave: (leave: Omit<LeaveRequest, 'id' | 'created_at' | 'updated_at' | 'status'>) => LeaveRequest;
@@ -162,6 +168,12 @@ interface DataState {
 
   // Notifications
   addNotification: (notif: Omit<NotificationItem, 'id' | 'created_at' | 'is_read'>) => void;
+  notifyRoles: (
+    roles: UserRole[],
+    notif: Omit<NotificationItem, 'id' | 'created_at' | 'is_read' | 'employee_id'>,
+    excludeEmployeeId?: string
+  ) => void;
+  subscribeToRealtimeNotifications: (currentUserId?: string) => () => void;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: (employeeId: string) => void;
 
@@ -282,7 +294,7 @@ export const useDataStore = create<DataState>()(
             };
           });
 
-            const enrichedMeetings = (meetingsData && meetingsData.length > 0 ? meetingsData : get().meetings).map((m: Meeting) => {
+            const enrichedMeetings = (meetingsData != null ? meetingsData : get().meetings).map((m: Meeting) => {
               const parts = (meetingParticipantsData || []).filter((p: any) => p.meeting_id === m.id);
               const creator = activeProfilesList.find((p) => p.id === m.created_by);
               return {
@@ -351,6 +363,12 @@ export const useDataStore = create<DataState>()(
     const currentTimeNum = currentHours * 60 + currentMins;
 
     const policy = get().attendancePolicy;
+    const existing = get().attendance.find((a) => a.employee_id === employeeId && a.date === today);
+    if (existing && existing.clock_out) {
+      console.warn('Shift already completed for today. Cannot clock in again.');
+      return existing;
+    }
+
     const [startH, startM] = (policy.office_start_time || '09:30').split(':').map(Number);
     const startTimeNum = (startH || 9) * 60 + (startM || 30);
 
@@ -424,6 +442,22 @@ export const useDataStore = create<DataState>()(
       })();
     }
 
+    // Broadcast Punch-In alert to Super Admins & Managers
+    const empProfile = get().profiles.find((p) => p.id === employeeId || p.user_id === employeeId);
+    const empName = empProfile?.full_name || 'Team Member';
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    get().notifyRoles(
+      ['super_admin', 'admin', 'manager'],
+      {
+        title: `👤 ${empName} Punched In`,
+        message: `${workMode.toUpperCase()} at ${timeStr} • ${location || 'System Location'} • Status: ${status}`,
+        type: 'attendance',
+        action_url: '/attendance',
+      },
+      employeeId
+    );
+
     return newRecord;
   },
 
@@ -437,7 +471,15 @@ export const useDataStore = create<DataState>()(
     const clockOutTime = now.toISOString();
     const start = new Date(current.clock_in).getTime();
     const end = now.getTime();
-    const hours = Math.round(((end - start) / (1000 * 60 * 60)) * 100) / 100;
+
+    let totalBreakMins = current.break_minutes || 0;
+    if (current.break_start) {
+      totalBreakMins += Math.max(1, Math.round((now.getTime() - new Date(current.break_start).getTime()) / 60000));
+    }
+
+    const grossHours = (end - start) / (1000 * 60 * 60);
+    const breakHours = totalBreakMins / 60;
+    const hours = Math.max(0, Math.round((grossHours - breakHours) * 100) / 100);
 
     const policy = get().attendancePolicy;
     let overtime = 0;
@@ -454,6 +496,8 @@ export const useDataStore = create<DataState>()(
     const updated: Attendance = {
       ...current,
       clock_out: clockOutTime,
+      break_start: null,
+      break_minutes: totalBreakMins,
       total_hours: hours,
       overtime_hours: overtime,
       punch_out_location: location || 'System Verified Location',
@@ -472,6 +516,8 @@ export const useDataStore = create<DataState>()(
             .from('attendance')
             .update({
               clock_out: clockOutTime,
+              break_start: null,
+              break_minutes: totalBreakMins,
               total_hours: hours,
               overtime_hours: overtime,
               punch_out_location: updated.punch_out_location,
@@ -485,7 +531,72 @@ export const useDataStore = create<DataState>()(
       })();
     }
 
+    // Broadcast Punch-Out alert to Super Admins & Managers
+    const empProfile = get().profiles.find((p) => p.id === employeeId || p.user_id === employeeId);
+    const empName = empProfile?.full_name || 'Team Member';
+    const timeOutStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    get().notifyRoles(
+      ['super_admin', 'admin', 'manager'],
+      {
+        title: `🏁 ${empName} Punched Out`,
+        message: `Logged ${hours}h at ${timeOutStr} • ${location || 'System Location'}${overtime > 0 ? ` (+${overtime}h OT)` : ''}${totalBreakMins > 0 ? ` (${totalBreakMins}m break)` : ''}`,
+        type: 'attendance',
+        action_url: '/attendance',
+      },
+      employeeId
+    );
+
     return updated;
+  },
+
+  // Start Break (Lunch / Tea break)
+  startBreak: (employeeId: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    const current = get().attendance.find((a) => a.employee_id === employeeId && a.date === today);
+    if (!current || current.clock_out || current.break_start) return;
+
+    const nowStr = new Date().toISOString();
+    const updated: Attendance = {
+      ...current,
+      break_start: nowStr,
+      updated_at: nowStr,
+    };
+
+    set((state) => ({
+      attendance: state.attendance.map((a) => (a.id === current.id ? updated : a)),
+    }));
+
+    if (supabase && isSupabaseConfigured) {
+      supabase.from('attendance').update({ break_start: nowStr }).eq('employee_id', employeeId).eq('date', today).then();
+    }
+  },
+
+  // End Break
+  endBreak: (employeeId: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    const current = get().attendance.find((a) => a.employee_id === employeeId && a.date === today);
+    if (!current || !current.break_start) return;
+
+    const now = new Date();
+    const durationMins = Math.max(1, Math.round((now.getTime() - new Date(current.break_start).getTime()) / 60000));
+    const totalBreak = (current.break_minutes || 0) + durationMins;
+    const nowStr = now.toISOString();
+
+    const updated: Attendance = {
+      ...current,
+      break_start: null,
+      break_minutes: totalBreak,
+      updated_at: nowStr,
+    };
+
+    set((state) => ({
+      attendance: state.attendance.map((a) => (a.id === current.id ? updated : a)),
+    }));
+
+    if (supabase && isSupabaseConfigured) {
+      supabase.from('attendance').update({ break_start: null, break_minutes: totalBreak }).eq('employee_id', employeeId).eq('date', today).then();
+    }
   },
 
       // Attendance Correction
@@ -535,14 +646,28 @@ export const useDataStore = create<DataState>()(
         const matchedAssignee = get().profiles.find(
           (p) => p.id === taskData.assignee_id || p.user_id === taskData.assignee_id
         );
+        const reporterProfile = get().profiles.find((p) => p.id === taskData.reporter_id);
+        const reporterName = reporterProfile?.full_name || 'Team Lead';
+
+        const initialActivity: TaskActivity = {
+          id: 'act-' + Date.now(),
+          task_id: '',
+          user_id: taskData.reporter_id,
+          user_name: reporterName,
+          action: `Created issue: "${taskData.title}"`,
+          created_at: new Date().toISOString(),
+        };
+
         const newTask: Task = {
           ...taskData,
           assignee: matchedAssignee,
           id: 'task-' + Date.now(),
           order_index: get().tasks.length,
+          activity_log: [initialActivity],
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
+        initialActivity.task_id = newTask.id;
 
         set((state) => ({
           tasks: [newTask, ...state.tasks],
@@ -564,38 +689,212 @@ export const useDataStore = create<DataState>()(
           }).then();
         }
 
+        const project = get().projects.find((p) => p.id === taskData.project_id);
+        const projectName = project?.name || 'Project Workspace';
+
+        // 1. Notify Assignee
         if (taskData.assignee_id) {
           get().addNotification({
             employee_id: taskData.assignee_id,
-            title: 'New Task Assigned',
-            message: `You were assigned: "${taskData.title}"`,
+            title: '🎯 Task Assigned to You',
+            message: `"${taskData.title}" in ${projectName} (Priority: ${taskData.priority.toUpperCase()})`,
             type: 'task',
             action_url: '/tasks',
           });
         }
 
+        // 2. Broadcast to Project Members / Super Admins / Managers
+        const recipients = new Set<string>();
+        if (project?.members) {
+          project.members.forEach((m) => {
+            if (m.employee_id !== taskData.reporter_id && m.employee_id !== taskData.assignee_id) {
+              recipients.add(m.employee_id);
+            }
+          });
+        }
+        // Alert Super Admins & Managers
+        get().profiles.forEach((p) => {
+          if (
+            (p.role === 'super_admin' || p.role === 'admin' || p.role === 'manager') &&
+            p.id !== taskData.reporter_id &&
+            p.id !== taskData.assignee_id
+          ) {
+            recipients.add(p.id);
+          }
+        });
+
+        recipients.forEach((empId) => {
+          get().addNotification({
+            employee_id: empId,
+            title: `📋 New Ticket in ${projectName}`,
+            message: `"${taskData.title}" created by ${reporterName}`,
+            type: 'task',
+            action_url: '/tasks',
+          });
+        });
+
         return newTask;
       },
 
-      updateTask: (id, updates) => {
+      updateTask: (id, updates, currentUserId, currentUserName) => {
+        const existingTask = get().tasks.find((t) => t.id === id);
+
+        let newActivities: TaskActivity[] = [];
+        if (existingTask) {
+          if (updates.status && updates.status !== existingTask.status) {
+            newActivities.push({
+              id: 'act-' + Date.now() + '-st',
+              task_id: id,
+              user_id: currentUserId,
+              user_name: currentUserName || 'Team Member',
+              action: `Changed status to ${updates.status.toUpperCase()}`,
+              created_at: new Date().toISOString(),
+            });
+          }
+          if (updates.assignee_id && updates.assignee_id !== existingTask.assignee_id) {
+            const newAssignee = get().profiles.find((p) => p.id === updates.assignee_id);
+            newActivities.push({
+              id: 'act-' + Date.now() + '-as',
+              task_id: id,
+              user_id: currentUserId,
+              user_name: currentUserName || 'Team Member',
+              action: `Reassigned issue to ${newAssignee?.full_name || 'Team Member'}`,
+              created_at: new Date().toISOString(),
+            });
+          }
+        }
+
         set((state) => ({
-          tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates, updated_at: new Date().toISOString() } : t)),
+          tasks: state.tasks.map((t) =>
+            t.id === id
+              ? {
+                  ...t,
+                  ...updates,
+                  activity_log: [...(t.activity_log || []), ...newActivities],
+                  updated_at: new Date().toISOString(),
+                }
+              : t
+          ),
         }));
 
         if (supabase && isSupabaseConfigured) {
           supabase.from('tasks').update(updates).eq('id', id).then();
         }
+
+        if (existingTask) {
+          // Reassignment notification
+          if (updates.assignee_id && updates.assignee_id !== existingTask.assignee_id) {
+            get().addNotification({
+              employee_id: updates.assignee_id,
+              title: '🎯 Task Reassigned to You',
+              message: `You are now assigned to: "${existingTask.title}"`,
+              type: 'task',
+              action_url: '/tasks',
+            });
+            if (existingTask.assignee_id) {
+              get().addNotification({
+                employee_id: existingTask.assignee_id,
+                title: 'Task Reassigned',
+                message: `"${existingTask.title}" was reassigned to another team member`,
+                type: 'task',
+                action_url: '/tasks',
+              });
+            }
+          }
+
+          // Status change notification
+          if (updates.status && updates.status !== existingTask.status) {
+            const statusLabels: Record<string, string> = {
+              todo: 'To Do',
+              in_progress: 'In Progress',
+              review: 'In Review',
+              done: 'Completed (Done)',
+            };
+            const label = statusLabels[updates.status] || updates.status;
+            const profiles = get().profiles;
+            const resolveId = (idOrUid?: string) => profiles.find((p) => p.id === idOrUid || p.user_id === idOrUid)?.id || idOrUid;
+
+            const normAssignee = resolveId(existingTask.assignee_id);
+            const normReporter = resolveId(existingTask.reporter_id);
+            const normActor = resolveId(currentUserId);
+
+            const recipients = new Set<string>();
+            if (normAssignee && normAssignee !== normActor) recipients.add(normAssignee);
+            if (normReporter && normReporter !== normActor) recipients.add(normReporter);
+
+            recipients.forEach((empId) => {
+              get().addNotification({
+                employee_id: empId,
+                title: `⚡ Ticket Status: ${label}`,
+                message: `"${existingTask.title}" moved to ${label}`,
+                type: 'task',
+                action_url: '/tasks',
+              });
+            });
+          }
+        }
       },
 
-      updateTaskStatus: (id, status) => {
+      updateTaskStatus: (id, status, currentUserId, currentUserName) => {
+        const existingTask = get().tasks.find((t) => t.id === id);
+
+        const newActivity: TaskActivity = {
+          id: 'act-' + Date.now(),
+          task_id: id,
+          user_id: currentUserId,
+          user_name: currentUserName || 'Team Member',
+          action: `Moved status to ${status.toUpperCase()}`,
+          created_at: new Date().toISOString(),
+        };
+
         set((state) => ({
-          tasks: state.tasks.map((t) => (t.id === id ? { ...t, status, updated_at: new Date().toISOString() } : t)),
+          tasks: state.tasks.map((t) =>
+            t.id === id
+              ? {
+                  ...t,
+                  status,
+                  activity_log: [...(t.activity_log || []), newActivity],
+                  updated_at: new Date().toISOString(),
+                }
+              : t
+          ),
         }));
 
         if (supabase && isSupabaseConfigured) {
           supabase.from('tasks').update({ status }).eq('id', id).then();
         }
+
+        if (existingTask && existingTask.status !== status) {
+          const statusLabels: Record<TaskStatus, string> = {
+            todo: 'To Do',
+            in_progress: 'In Progress',
+            review: 'In Review',
+            done: 'Completed (Done)',
+          };
+          const label = statusLabels[status] || status;
+          const profiles = get().profiles;
+          const resolveId = (idOrUid?: string) => profiles.find((p) => p.id === idOrUid || p.user_id === idOrUid)?.id || idOrUid;
+
+          const normAssignee = resolveId(existingTask.assignee_id);
+          const normReporter = resolveId(existingTask.reporter_id);
+          const normActor = resolveId(currentUserId);
+
+          const recipients = new Set<string>();
+          if (normAssignee && normAssignee !== normActor) recipients.add(normAssignee);
+          if (normReporter && normReporter !== normActor) recipients.add(normReporter);
+
+          recipients.forEach((empId) => {
+            get().addNotification({
+              employee_id: empId,
+              title: `⚡ Ticket Status: ${label}`,
+              message: `"${existingTask.title}" moved to ${label}`,
+              type: 'task',
+              action_url: '/tasks',
+            });
+          });
+        }
       },
+
 
       deleteTask: (id) => {
         set((state) => ({
@@ -611,6 +910,9 @@ export const useDataStore = create<DataState>()(
         const task = get().tasks.find((t) => t.id === taskId);
         if (!task) return;
 
+        const author = get().profiles.find((p) => p.id === employeeId || p.user_id === employeeId);
+        const authorName = author?.full_name || 'Team Member';
+
         const newComment = {
           id: 'cm-' + Date.now(),
           task_id: taskId,
@@ -619,9 +921,26 @@ export const useDataStore = create<DataState>()(
           created_at: new Date().toISOString(),
         };
 
+        const newActivity: TaskActivity = {
+          id: 'act-' + Date.now(),
+          task_id: taskId,
+          user_id: employeeId,
+          user_name: authorName,
+          action: `Commented: "${comment.slice(0, 45)}${comment.length > 45 ? '...' : ''}"`,
+          created_at: new Date().toISOString(),
+        };
+
         const updatedComments = [...(task.comments || []), newComment];
         set((state) => ({
-          tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, comments: updatedComments } : t)),
+          tasks: state.tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  comments: updatedComments,
+                  activity_log: [...(t.activity_log || []), newActivity],
+                }
+              : t
+          ),
         }));
 
         if (supabase && isSupabaseConfigured) {
@@ -631,6 +950,28 @@ export const useDataStore = create<DataState>()(
             comment,
           }).then();
         }
+      },
+
+      logTaskActivity: (taskId, action, userId, userName) => {
+        const newActivity: TaskActivity = {
+          id: 'act-' + Date.now(),
+          task_id: taskId,
+          user_id: userId,
+          user_name: userName || 'Team Member',
+          action,
+          created_at: new Date().toISOString(),
+        };
+
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  activity_log: [...(t.activity_log || []), newActivity],
+                }
+              : t
+          ),
+        }));
       },
 
       // Leave
@@ -945,8 +1286,8 @@ export const useDataStore = create<DataState>()(
                     }));
                     client
                       .from('meeting_participants')
-                      .insert(participantRows)
-                      .then(null, (e: any) => console.warn('Participants insert:', e?.message || e));
+                      .upsert(participantRows, { onConflict: 'meeting_id,employee_id' })
+                      .then(null, (e: any) => console.warn('Participants upsert:', e?.message || e));
                   }
                 }
               },
@@ -1011,11 +1352,10 @@ export const useDataStore = create<DataState>()(
               meeting_id: id,
               employee_id: p.employee_id,
               status: p.status,
-              decline_reason: p.decline_reason || null,
             }));
             client
               .from('meeting_participants')
-              .upsert(participantRows)
+              .upsert(participantRows, { onConflict: 'meeting_id,employee_id' })
               .then(null, (e: any) => console.warn('Participants update:', e?.message || e));
           }
         }
@@ -1105,12 +1445,10 @@ export const useDataStore = create<DataState>()(
           const client = supabase;
           client
             .from('meeting_participants')
-            .upsert({
-              meeting_id: meetingId,
-              employee_id: employeeId,
-              status,
-              decline_reason: declineReason || null,
-            })
+            .upsert(
+              { meeting_id: meetingId, employee_id: employeeId, status },
+              { onConflict: 'meeting_id,employee_id' }
+            )
             .then(null, (err: any) => console.warn('Supabase meeting participant upsert:', err?.message || err));
 
           if (newNotifs.length > 0) {
@@ -1729,9 +2067,24 @@ export const useDataStore = create<DataState>()(
 
       // Notifications
       addNotification: (notif) => {
+        const canonicalEmpId =
+          get().profiles.find((p) => p.id === notif.employee_id || p.user_id === notif.employee_id)?.id ||
+          notif.employee_id;
+
+        // Prevent inserting identical notification within 3 seconds
+        const isDuplicate = get().notifications.some(
+          (n) =>
+            n.employee_id === canonicalEmpId &&
+            n.title === notif.title &&
+            n.message === notif.message &&
+            Math.abs(Date.now() - new Date(n.created_at || '').getTime()) < 3000
+        );
+        if (isDuplicate) return;
+
         const newNotif: NotificationItem = {
           ...notif,
-          id: 'notif-' + Date.now(),
+          employee_id: canonicalEmpId,
+          id: 'notif-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
           is_read: false,
           created_at: new Date().toISOString(),
         };
@@ -1740,15 +2093,111 @@ export const useDataStore = create<DataState>()(
         }));
 
         if (supabase && isSupabaseConfigured) {
-          supabase.from('notifications').insert({
-            employee_id: notif.employee_id,
+          supabase
+            .from('notifications')
+            .insert({
+              employee_id: canonicalEmpId,
+              title: notif.title,
+              message: notif.message,
+              type: notif.type,
+              is_read: false,
+              action_url: notif.action_url,
+            })
+            .then();
+        }
+      },
+
+      notifyRoles: (roles, notif, excludeEmployeeId) => {
+        const matchedProfiles = get().profiles.filter(
+          (p) => roles.includes(p.role) && p.id !== excludeEmployeeId && p.user_id !== excludeEmployeeId
+        );
+
+        matchedProfiles.forEach((profile) => {
+          get().addNotification({
+            employee_id: profile.id,
             title: notif.title,
             message: notif.message,
             type: notif.type,
-            is_read: false,
             action_url: notif.action_url,
-          }).then();
-        }
+          });
+        });
+      },
+
+      subscribeToRealtimeNotifications: (currentUserId?: string) => {
+        if (!isSupabaseConfigured || !supabase) return () => {};
+
+        const channel = supabase
+          .channel('public:realtime_notifications')
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'notifications' },
+            (payload) => {
+              const newNotif = payload.new as NotificationItem;
+              if (!newNotif) return;
+
+              const currentProfiles = get().profiles;
+              const myProfile = currentProfiles.find(
+                (p) => p.id === currentUserId || p.user_id === currentUserId
+              );
+
+              const isRecipient =
+                !currentUserId ||
+                newNotif.employee_id === currentUserId ||
+                (myProfile && (newNotif.employee_id === myProfile.id || newNotif.employee_id === myProfile.user_id));
+
+              if (isRecipient) {
+                set((state) => {
+                  const existingIdx = state.notifications.findIndex(
+                    (n) =>
+                      n.id === newNotif.id ||
+                      (
+                        (n.employee_id === newNotif.employee_id || (myProfile && (n.employee_id === myProfile.id || n.employee_id === myProfile.user_id))) &&
+                        n.title === newNotif.title &&
+                        n.message === newNotif.message &&
+                        Math.abs(new Date(n.created_at || '').getTime() - new Date(newNotif.created_at || '').getTime()) < 10000
+                      )
+                  );
+
+                  if (existingIdx !== -1) {
+                    const updatedList = [...state.notifications];
+                    updatedList[existingIdx] = newNotif;
+                    return { notifications: updatedList };
+                  }
+
+                  return { notifications: [newNotif, ...state.notifications] };
+                });
+
+                // Trigger Windows / macOS Notification Center banner
+                sendNativeNotification(newNotif.title, {
+                  body: newNotif.message,
+                  tag: `tcy-notif-${newNotif.id || newNotif.title}`,
+                  onClickUrl: newNotif.action_url,
+                  requireInteraction: false,
+                }).catch(() => {});
+              }
+            }
+          )
+
+
+
+          .on(
+            'postgres_changes',
+            { event: 'UPDATE', schema: 'public', table: 'notifications' },
+            (payload) => {
+              const updated = payload.new as NotificationItem;
+              if (!updated) return;
+              set((state) => ({
+                notifications: state.notifications.map((n) => (n.id === updated.id ? { ...n, ...updated } : n)),
+              }));
+            }
+          )
+          .subscribe();
+
+        return () => {
+          if (supabase) {
+            supabase.removeChannel(channel);
+          }
+        };
       },
 
       markNotificationAsRead: (id) => {

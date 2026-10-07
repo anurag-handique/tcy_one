@@ -45,6 +45,9 @@ import {
   Circle,
   PlayCircle,
   Eye,
+  TrendingUp,
+  CornerDownRight,
+  ListChecks,
 } from 'lucide-react';
 import { useDataStore } from '@/stores/dataStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -54,6 +57,7 @@ import { formatDate, getPriorityColor, getStatusColor } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { UserAvatar } from '@/components/ui/Avatar';
+import { TaskActivityAuditTrail } from '@/components/shared/TaskActivityAuditTrail';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog';
 import { toast } from 'sonner';
 
@@ -118,36 +122,71 @@ function getPriorityIcon(priority: string) {
   }
 }
 
+// Unique colored badge icons per issue type — Jira-style
+function IssueTypeBadge({ type, size = 'md' }: { type: string; size?: 'sm' | 'md' | 'lg' }) {
+  const dim = size === 'lg' ? 'h-6 w-6' : size === 'md' ? 'h-5 w-5' : 'h-4 w-4';
+  const iconDim = size === 'lg' ? 'h-3.5 w-3.5' : size === 'md' ? 'h-3 w-3' : 'h-2.5 w-2.5';
+  switch (type) {
+    case 'Bug':
+      return (
+        <span title="Bug" className={`inline-flex items-center justify-center ${dim} rounded-sm bg-rose-500 flex-shrink-0`}>
+          <Bug className={`${iconDim} text-white`} strokeWidth={2.5} />
+        </span>
+      );
+    case 'Story':
+      return (
+        <span title="Story" className={`inline-flex items-center justify-center ${dim} rounded-sm bg-emerald-500 flex-shrink-0`}>
+          <Bookmark className={`${iconDim} text-white`} strokeWidth={2.5} />
+        </span>
+      );
+    case 'Epic':
+      return (
+        <span title="Epic" className={`inline-flex items-center justify-center ${dim} rounded-sm bg-purple-500 flex-shrink-0`}>
+          <Zap className={`${iconDim} text-white`} strokeWidth={2.5} />
+        </span>
+      );
+    case 'Subtask':
+      return (
+        <span title="Subtask" className={`inline-flex items-center justify-center ${dim} rounded-sm bg-cyan-500 flex-shrink-0`}>
+          <CornerDownRight className={`${iconDim} text-white`} strokeWidth={2.5} />
+        </span>
+      );
+    case 'Improvement':
+      return (
+        <span title="Improvement" className={`inline-flex items-center justify-center ${dim} rounded-sm bg-orange-500 flex-shrink-0`}>
+          <TrendingUp className={`${iconDim} text-white`} strokeWidth={2.5} />
+        </span>
+      );
+    case 'Task':
+    default:
+      return (
+        <span title="Task" className={`inline-flex items-center justify-center ${dim} rounded-sm bg-blue-500 flex-shrink-0`}>
+          <CheckSquare className={`${iconDim} text-white`} strokeWidth={2.5} />
+        </span>
+      );
+  }
+}
+
 function getIssueType(task: Task) {
   const titleLower = task.title.toLowerCase();
   const tagsString = (task.tags || []).join(' ').toLowerCase();
 
   if (titleLower.includes('bug') || tagsString.includes('bug') || titleLower.includes('fix') || titleLower.includes('error')) {
-    return {
-      type: 'Bug',
-      icon: <Bug className="h-3.5 w-3.5 text-rose-400" />,
-      color: 'text-rose-400 bg-rose-500/10 border-rose-500/20',
-    };
+    return { type: 'Bug', color: 'text-rose-400 bg-rose-500/10 border-rose-500/20' };
   }
-  if (tagsString.includes('story') || tagsString.includes('feature')) {
-    return {
-      type: 'Story',
-      icon: <Bookmark className="h-3.5 w-3.5 text-emerald-400" />,
-      color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-    };
+  if (tagsString.includes('subtask') || titleLower.includes('subtask')) {
+    return { type: 'Subtask', color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' };
+  }
+  if (tagsString.includes('improvement') || titleLower.includes('improvement') || titleLower.includes('enhance')) {
+    return { type: 'Improvement', color: 'text-orange-400 bg-orange-500/10 border-orange-500/20' };
+  }
+  if (tagsString.includes('story') || tagsString.includes('feature') || titleLower.includes('feature')) {
+    return { type: 'Story', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' };
   }
   if (tagsString.includes('epic') || titleLower.includes('epic')) {
-    return {
-      type: 'Epic',
-      icon: <Zap className="h-3.5 w-3.5 text-purple-400" />,
-      color: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
-    };
+    return { type: 'Epic', color: 'text-purple-400 bg-purple-500/10 border-purple-500/20' };
   }
-  return {
-    type: 'Task',
-    icon: <CheckSquare className="h-3.5 w-3.5 text-blue-400" />,
-    color: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-  };
+  return { type: 'Task', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' };
 }
 
 function KanbanCard({
@@ -161,6 +200,7 @@ function KanbanCard({
   profiles: Profile[];
   projects: Project[];
 }) {
+  const { updateTask } = useDataStore();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { task },
@@ -179,6 +219,17 @@ function KanbanCard({
   const assigneeName = matchedAssignee?.full_name || 'Unassigned';
   const proj = projects.find((p) => p.id === task.project_id);
   const taskKey = proj?.code ? `${proj.code}-${task.id.slice(-4).toUpperCase()}` : `TCY-${task.id.slice(-4).toUpperCase()}`;
+
+  const subtasks = task.subtasks || [];
+  const completedSubtasks = subtasks.filter((s) => s.completed).length;
+
+  const handleToggleSubtaskOnCard = (e: React.MouseEvent, subtaskId: string) => {
+    e.stopPropagation();
+    const updatedSubtasks = subtasks.map((st) =>
+      st.id === subtaskId ? { ...st, completed: !st.completed } : st
+    );
+    updateTask(task.id, { subtasks: updatedSubtasks });
+  };
 
   // Authentic Jira Card Surface & Left Accent
   const cardStyle = isDone
@@ -203,9 +254,7 @@ function KanbanCard({
       {/* Card Header: Issue Key, Type & Due Date */}
       <div className="flex items-center justify-between gap-1.5 mb-2">
         <div className="flex items-center gap-1.5">
-          <span title={issueType.type} className="flex-shrink-0">
-            {issueType.icon}
-          </span>
+          <IssueTypeBadge type={issueType.type} size="sm" />
           <span
             className={`font-mono text-[11px] font-bold tracking-tight ${
               isDone ? 'text-emerald-400 hover:underline' : 'text-blue-400 hover:underline'
@@ -234,7 +283,7 @@ function KanbanCard({
       </div>
 
       {/* Title - Jira Strikethrough & Completed Treatment */}
-      <div className="mb-2.5">
+      <div className="mb-2">
         <h4
           className={`text-xs font-medium leading-snug line-clamp-2 transition-colors ${
             isDone
@@ -248,7 +297,7 @@ function KanbanCard({
 
       {/* Jira Tag Pills */}
       {task.tags && task.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-2.5">
+        <div className="flex flex-wrap gap-1 mb-2">
           {task.tags.slice(0, 3).map((t, idx) => (
             <span
               key={idx}
@@ -265,9 +314,9 @@ function KanbanCard({
         </div>
       )}
 
-      {/* Card Footer: Priority, Comments, Estimate & Assignee Avatar */}
+      {/* Card Footer: Priority, Comments, Estimate, Subtask count & Assignee Avatar */}
       <div className="flex items-center justify-between border-t border-[#1b2232]/80 pt-2 text-[10px]">
-        {/* Left: Priority Icon + Comments */}
+        {/* Left: Priority Icon + Comments + Subtasks count */}
         <div className="flex items-center gap-2">
           <span className="flex items-center" title={`Priority: ${task.priority}`}>
             {getPriorityIcon(task.priority)}
@@ -277,6 +326,16 @@ function KanbanCard({
             <span className="flex items-center gap-1 font-mono text-slate-400 text-[10px]">
               <MessageSquare className="h-3 w-3" />
               {task.comments.length}
+            </span>
+          )}
+
+          {subtasks.length > 0 && (
+            <span
+              className="flex items-center gap-1 font-mono text-slate-400 text-[10px]"
+              title={`${completedSubtasks}/${subtasks.length} subtasks completed`}
+            >
+              <ListChecks className="h-3 w-3 text-blue-400" />
+              <span>{completedSubtasks}/{subtasks.length}</span>
             </span>
           )}
 
@@ -404,6 +463,41 @@ export function TasksPage() {
   const [quickFilter, setQuickFilter] = React.useState<'all' | 'my_issues' | 'high_priority' | 'done'>('all');
   const [activeDetailTask, setActiveDetailTask] = React.useState<Task | null>(null);
   const [commentText, setCommentText] = React.useState('');
+  const [newDetailSubtaskTitle, setNewDetailSubtaskTitle] = React.useState('');
+
+  const handleToggleDetailSubtask = (subtaskId: string) => {
+    if (!activeDetailTask) return;
+    const currentSubtasks = activeDetailTask.subtasks || [];
+    const updatedSubtasks = currentSubtasks.map((st) =>
+      st.id === subtaskId ? { ...st, completed: !st.completed } : st
+    );
+    updateTask(activeDetailTask.id, { subtasks: updatedSubtasks });
+    setActiveDetailTask({ ...activeDetailTask, subtasks: updatedSubtasks });
+  };
+
+  const handleAddDetailSubtask = () => {
+    if (!activeDetailTask || !newDetailSubtaskTitle.trim()) return;
+    const currentSubtasks = activeDetailTask.subtasks || [];
+    const newSub = {
+      id: `sub-${Date.now()}`,
+      title: newDetailSubtaskTitle.trim(),
+      completed: false,
+    };
+    const updatedSubtasks = [...currentSubtasks, newSub];
+    updateTask(activeDetailTask.id, { subtasks: updatedSubtasks });
+    setActiveDetailTask({ ...activeDetailTask, subtasks: updatedSubtasks });
+    setNewDetailSubtaskTitle('');
+    toast.success('Subtask added');
+  };
+
+  const handleDeleteDetailSubtask = (subtaskId: string) => {
+    if (!activeDetailTask) return;
+    const currentSubtasks = activeDetailTask.subtasks || [];
+    const updatedSubtasks = currentSubtasks.filter((st) => st.id !== subtaskId);
+    updateTask(activeDetailTask.id, { subtasks: updatedSubtasks });
+    setActiveDetailTask({ ...activeDetailTask, subtasks: updatedSubtasks });
+    toast.success('Subtask removed');
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -659,10 +753,24 @@ export function TasksPage() {
           className="h-7.5 rounded border border-[#1b2230] bg-[#11141c] px-2 text-[11px] text-slate-300 font-mono focus:outline-none focus:border-blue-500"
         >
           <option value="all">ALL PRIORITIES</option>
-          <option value="urgent">URGENT</option>
-          <option value="high">HIGH</option>
-          <option value="medium">MEDIUM</option>
-          <option value="low">LOW</option>
+          <option value="urgent">⚡ URGENT</option>
+          <option value="high">🔼 HIGH</option>
+          <option value="medium">⏸ MEDIUM</option>
+          <option value="low">🔽 LOW</option>
+        </select>
+
+        <select
+          value={selectedType}
+          onChange={(e) => setSelectedType(e.target.value)}
+          className="h-7.5 rounded border border-[#1b2230] bg-[#11141c] px-2 text-[11px] text-slate-300 font-mono focus:outline-none focus:border-blue-500"
+        >
+          <option value="all">ALL TYPES</option>
+          <option value="task">🟦 TASK</option>
+          <option value="bug">🟥 BUG</option>
+          <option value="story">🟩 STORY</option>
+          <option value="epic">🟪 EPIC</option>
+          <option value="subtask">🩵 SUBTASK</option>
+          <option value="improvement">🟧 IMPROVEMENT</option>
         </select>
 
         {hasActiveFilters && (
@@ -746,7 +854,7 @@ export function TasksPage() {
                     >
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-1.5 font-mono text-[11px]">
-                          {issueType.icon}
+                          <IssueTypeBadge type={issueType.type} size="sm" />
                           <span
                             className={`font-bold ${
                               isDone ? 'text-emerald-400' : 'text-blue-400'
@@ -837,30 +945,41 @@ export function TasksPage() {
 
         return (
           <Dialog open={Boolean(activeDetailTask)} onOpenChange={() => setActiveDetailTask(null)}>
-            <DialogContent className="max-w-4xl bg-[#0c0f17] border-[#1f2637] p-6 shadow-2xl rounded-2xl">
+            <DialogContent className="max-w-5xl lg:max-w-6xl w-[96vw] bg-[#0c0f17] border-[#1f2637] p-6 shadow-2xl rounded-2xl max-h-[92vh] flex flex-col" hideCloseButton>
               {/* Jira Breadcrumbs / Issue Key Header */}
-              <DialogHeader className="border-b border-[#1b2230] pb-3 pr-10">
+              <DialogHeader className="border-b border-[#1b2230] pb-3 shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 font-mono text-xs">
-                    <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#161c28] border border-[#232c3f] text-slate-300">
-                      {issueType.icon}
+                    <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#161c28] border border-[#232c3f] text-slate-300">
+                      <IssueTypeBadge type={issueType.type} size="sm" />
+                      <span className={issueType.color.split(' ')[0]}>{issueType.type}</span>
+                      <span className="text-slate-500">·</span>
                       <span>{currentTaskProject?.code || 'PROJECT'}</span>
                     </span>
                     <span className="text-slate-500">/</span>
                     <span className="font-bold text-blue-400">{taskKey}</span>
                   </div>
 
-                  {/* Current Status Pill with Icon */}
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-mono uppercase rounded-full border font-bold whitespace-nowrap ${getStageInfo(activeDetailTask.status).pillColor}`}
-                  >
-                    {getStageInfo(activeDetailTask.status).smallIcon}
-                    <span>{activeDetailTask.status.replace('_', ' ')}</span>
-                  </span>
+                  {/* Current Status Pill + Close Button */}
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-mono uppercase rounded-full border font-bold whitespace-nowrap ${getStageInfo(activeDetailTask.status).pillColor}`}
+                    >
+                      {getStageInfo(activeDetailTask.status).smallIcon}
+                      <span>{activeDetailTask.status.replace('_', ' ')}</span>
+                    </span>
+                    <button
+                      onClick={() => setActiveDetailTask(null)}
+                      className="ml-1 flex-shrink-0 rounded p-1 text-slate-400 hover:text-white hover:bg-[#161c28] transition-colors"
+                      title="Close"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
 
                 <DialogTitle
-                  className={`text-lg font-semibold mt-2 text-left ${
+                  className={`text-xl font-bold mt-2 text-left leading-snug ${
                     isDone ? 'line-through text-slate-400' : 'text-white'
                   }`}
                 >
@@ -869,15 +988,15 @@ export function TasksPage() {
               </DialogHeader>
 
               {/* 2-Column Jira Layout */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 pt-3">
-                {/* Left 7 Cols: Description & Comments */}
-                <div className="md:col-span-7 space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-4 overflow-y-auto flex-1 pr-1">
+                {/* Left 8 Cols: Description, Subtasks & Comments */}
+                <div className="lg:col-span-8 space-y-5">
                   {/* Description Section */}
                   <div>
-                    <label className="text-[11px] font-mono uppercase text-slate-400 font-semibold block mb-1">
+                    <label className="text-[11px] font-mono uppercase text-slate-400 font-semibold block mb-1.5">
                       Description
                     </label>
-                    <div className="bg-[#0e121c] p-3.5 rounded-md border border-[#1b2230] text-xs text-slate-200 leading-relaxed whitespace-pre-wrap min-h-[90px]">
+                    <div className="bg-[#0e121c] p-4 rounded-xl border border-[#1b2230] text-xs text-slate-200 leading-relaxed whitespace-pre-wrap min-h-[90px]">
                       {activeDetailTask.description || 'No description provided.'}
                     </div>
                   </div>
@@ -885,14 +1004,14 @@ export function TasksPage() {
                   {/* Tags */}
                   {activeDetailTask.tags && activeDetailTask.tags.length > 0 && (
                     <div>
-                      <label className="text-[11px] font-mono uppercase text-slate-400 font-semibold block mb-1">
+                      <label className="text-[11px] font-mono uppercase text-slate-400 font-semibold block mb-1.5">
                         Tags / Labels
                       </label>
                       <div className="flex flex-wrap gap-1.5">
                         {activeDetailTask.tags.map((tg, idx) => (
                           <span
                             key={idx}
-                            className="text-xs font-mono px-2 py-0.5 rounded bg-[#161c28] border border-[#252e42] text-slate-300"
+                            className="text-xs font-mono px-2.5 py-1 rounded bg-[#161c28] border border-[#252e42] text-slate-300"
                           >
                             {tg}
                           </span>
@@ -901,53 +1020,119 @@ export function TasksPage() {
                     </div>
                   )}
 
-                  {/* Activity / Comments Thread */}
-                  <div className="border-t border-[#1b2230] pt-3 space-y-2.5">
-                    <label className="text-[11px] font-mono uppercase text-slate-400 font-semibold block">
-                      Activity & Comments
-                    </label>
+                  {/* Subtasks Section - High Capacity for 50+ items */}
+                  <div className="border-t border-[#1b2230] pt-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-mono font-bold text-slate-200">
+                        <ListChecks className="h-4 w-4 text-blue-400" />
+                        <span>Subtasks ({activeDetailTask.subtasks?.length || 0})</span>
+                      </div>
 
-                    <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
-                      {!activeDetailTask.comments || activeDetailTask.comments.length === 0 ? (
-                        <p className="text-xs text-slate-500 italic">No comments yet. Start the conversation below.</p>
-                      ) : (
-                        activeDetailTask.comments.map((cm) => {
-                          const commenter = profiles.find((p) => p.id === cm.employee_id);
-                          return (
-                            <div key={cm.id} className="bg-[#0e121c] p-2.5 rounded border border-[#1b2230] text-xs">
-                              <div className="flex justify-between items-center text-slate-400 text-[10px] font-mono mb-1">
-                                <div className="flex items-center gap-1.5">
-                                  <UserAvatar name={commenter?.full_name || 'User'} size="sm" className="h-4 w-4 text-[8px]" />
-                                  <span className="font-semibold text-slate-300">{commenter?.full_name || 'Team Member'}</span>
-                                </div>
-                                <span>{formatDate(cm.created_at, 'dd MMM, hh:mm a')}</span>
-                              </div>
-                              <p className="text-slate-200 pl-5">{cm.comment}</p>
-                            </div>
-                          );
-                        })
+                      {activeDetailTask.subtasks && activeDetailTask.subtasks.length > 0 && (
+                        <span className="text-[11px] font-mono text-slate-300 bg-[#161c28] px-2.5 py-0.5 rounded-full border border-[#232c3f]">
+                          {activeDetailTask.subtasks.filter((s) => s.completed).length} of {activeDetailTask.subtasks.length} completed ({Math.round((activeDetailTask.subtasks.filter((s) => s.completed).length / activeDetailTask.subtasks.length) * 100)}%)
+                        </span>
                       )}
                     </div>
 
-                    <div className="flex gap-2 pt-1">
+                    {/* Subtasks Progress Bar */}
+                    {activeDetailTask.subtasks && activeDetailTask.subtasks.length > 0 && (
+                      <div className="w-full h-2 rounded-full bg-[#161c28] overflow-hidden">
+                        <div
+                          style={{
+                            width: `${(activeDetailTask.subtasks.filter((s) => s.completed).length / activeDetailTask.subtasks.length) * 100}%`,
+                          }}
+                          className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                        />
+                      </div>
+                    )}
+
+                    {/* Subtasks List with Smooth Scrolling */}
+                    <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                      {activeDetailTask.subtasks?.map((subtask) => (
+                        <div
+                          key={subtask.id}
+                          className="flex items-center justify-between gap-2.5 p-2.5 rounded-xl bg-[#0e121a] hover:bg-[#131724] border border-[#1b202c] transition-colors group"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDetailSubtask(subtask.id)}
+                            className="flex items-center gap-2.5 text-left flex-1 min-w-0"
+                          >
+                            {subtask.completed ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                            ) : (
+                              <Circle className="h-4 w-4 text-slate-500 shrink-0 group-hover:text-blue-400" />
+                            )}
+                            <span
+                              className={`text-xs ${
+                                subtask.completed ? 'line-through text-slate-500 font-mono' : 'text-slate-200'
+                              } truncate`}
+                            >
+                              {subtask.title}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDetailSubtask(subtask.id)}
+                            className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 p-1 rounded transition-opacity"
+                            title="Delete subtask"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Add Subtask Input */}
+                      <div className="flex items-center gap-2 pt-1.5">
+                        <input
+                          placeholder="+ Add a subtask and press Enter..."
+                          value={newDetailSubtaskTitle}
+                          onChange={(e) => setNewDetailSubtaskTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddDetailSubtask();
+                            }
+                          }}
+                          className="h-9 flex-1 bg-[#0e121a] border border-[#1f2637] text-xs text-slate-100 placeholder:text-slate-500 rounded-xl px-3 focus:outline-none focus:border-blue-500"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleAddDetailSubtask}
+                          className="h-9 text-xs bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] text-slate-200 rounded-xl px-3.5 shrink-0 font-medium"
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Activity & Comments Thread + Full Audit Trail */}
+                  <div className="border-t border-[#1b2230] pt-4 space-y-3">
+                    <TaskActivityAuditTrail task={activeDetailTask} />
+
+                    <div className="flex gap-2 pt-2 border-t border-[#181e2b]">
                       <input
-                        placeholder="Add a comment or work log..."
+                        placeholder="Add a comment or activity note..."
                         value={commentText}
                         onChange={(e) => setCommentText(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
-                        className="h-8 flex-1 rounded border border-[#1b2230] bg-[#0e121c] px-3 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
+                        className="h-9 flex-1 rounded-xl border border-[#1b2230] bg-[#0e121c] px-3.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
                       />
-                      <Button size="sm" onClick={handleAddComment} className="h-8 px-3 text-xs bg-blue-600 hover:bg-blue-500">
+                      <Button size="sm" onClick={handleAddComment} className="h-9 px-4 text-xs bg-blue-600 hover:bg-blue-500 rounded-xl font-medium">
                         <Send className="h-3.5 w-3.5 mr-1" />
-                        <span>Save</span>
+                        <span>Send</span>
                       </Button>
                     </div>
                   </div>
                 </div>
 
-                {/* Right 1 Col: Jira Metadata Sidebar */}
-                <div className="md:col-span-5 space-y-3 bg-[#0e121c] p-3.5 rounded-xl border border-[#1b2230] text-xs">
-                  <span className="font-mono text-[11px] font-bold text-slate-300 uppercase tracking-wide block border-b border-[#1b2230] pb-1.5">
+                {/* Right 4 Cols: Jira Metadata Sidebar */}
+                <div className="lg:col-span-4 space-y-4 bg-[#0e121c] p-4 rounded-2xl border border-[#1b2230] text-xs h-fit">
+                  <span className="font-mono text-[11px] font-bold text-slate-300 uppercase tracking-wide block border-b border-[#1b2230] pb-2">
                     Issue Details
                   </span>
 
@@ -967,9 +1152,9 @@ export function TasksPage() {
                               setActiveDetailTask({ ...activeDetailTask, status: st });
                               toast.success(`Moved to ${stInfo.label}`);
                             }}
-                            className={`flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] font-mono rounded-lg transition-all border text-center whitespace-nowrap overflow-hidden ${
+                            className={`flex items-center justify-center gap-1.5 px-2 py-2 text-[10px] font-mono rounded-lg transition-all border text-center whitespace-nowrap overflow-hidden ${
                               isCurrent
-                                ? `${stInfo.activeBtnBg} shadow-sm ring-1 ring-blue-500/30`
+                                ? `${stInfo.activeBtnBg} shadow-sm ring-1 ring-blue-500/30 font-bold`
                                 : 'bg-[#141824] text-slate-400 border-[#222a3d] hover:text-white hover:bg-[#1a2133]'
                             }`}
                           >

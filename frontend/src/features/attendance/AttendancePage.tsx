@@ -12,6 +12,10 @@ import {
   MapPin,
   Eye,
   Info,
+  Coffee,
+  Download,
+  Printer,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
@@ -24,6 +28,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { UserAvatar } from '@/components/ui/Avatar';
+import { WeeklyTimesheetBar } from '@/components/shared/WeeklyTimesheetBar';
+import { exportAttendanceCSV, printTimesheetDocument } from '@/lib/exportUtils';
 import { toast } from 'sonner';
 import { GeoMapView } from './GeoMapView';
 
@@ -34,6 +40,8 @@ export function AttendancePage() {
     attendance,
     clockIn,
     clockOut,
+    startBreak,
+    endBreak,
     attendanceCorrections,
     requestAttendanceCorrection,
     reviewAttendanceCorrection,
@@ -56,6 +64,8 @@ export function AttendancePage() {
     (a) => matchesCurrentEmployee(a.employee_id) && a.date === todayStr
   );
   const isClockedIn = Boolean(todayAttendance && !todayAttendance.clock_out);
+  const isShiftCompleted = Boolean(todayAttendance?.clock_in && todayAttendance?.clock_out);
+  const isOnBreak = Boolean(isClockedIn && todayAttendance?.break_start);
 
   const [selectedWorkMode, setSelectedWorkMode] = React.useState<WorkMode>('office');
   const [correctionModalOpen, setCorrectionModalOpen] = React.useState(false);
@@ -66,6 +76,8 @@ export function AttendancePage() {
   const [corrReason, setCorrReason] = React.useState('');
 
   const [elapsed, setElapsed] = React.useState<string>('0h 0m');
+  const [breakElapsed, setBreakElapsed] = React.useState<string>('0m');
+
   React.useEffect(() => {
     const update = () => {
       if (todayAttendance?.clock_in && !todayAttendance.clock_out) {
@@ -75,14 +87,44 @@ export function AttendancePage() {
       } else {
         setElapsed('0h 0m');
       }
+
+      if (todayAttendance?.break_start) {
+        const breakMins = Math.max(1, Math.floor((new Date().getTime() - new Date(todayAttendance.break_start).getTime()) / 60000));
+        setBreakElapsed(`${breakMins}m`);
+      }
     };
     update();
-    const interval = setInterval(update, 30000);
+    const interval = setInterval(update, 10000);
     return () => clearInterval(interval);
   }, [todayAttendance]);
 
   const handlePunchToggle = () => {
+    if (isShiftCompleted) {
+      toast.info('Shift completed for today. Submit an Attendance Regularization request if you need timing adjustments.');
+      return;
+    }
     setPunchModalOpen(true, isClockedIn ? 'out' : 'in');
+  };
+
+  const handleStartBreak = () => {
+    startBreak(currentUser.id);
+    toast.success('☕ Break mode started. Enjoy your lunch/tea break!');
+  };
+
+  const handleEndBreak = () => {
+    endBreak(currentUser.id);
+    toast.success('💻 Break ended. Shift resumed!');
+  };
+
+  const myAttendanceHistory = attendance.filter((a) => matchesCurrentEmployee(a.employee_id));
+
+  const handleExportCSV = () => {
+    exportAttendanceCSV(myAttendanceHistory, profiles, `attendance_${currentUser.full_name?.toLowerCase().replace(/\s+/g, '_') || 'user'}_${todayStr}.csv`);
+    toast.success('Attendance records exported as CSV successfully');
+  };
+
+  const handlePrintTimesheet = () => {
+    printTimesheetDocument(`${currentUser.full_name || 'Employee'} — Monthly Timesheet & Attendance`, myAttendanceHistory, profiles);
   };
 
   const handleCorrectionSubmit = (e: React.FormEvent) => {
@@ -106,14 +148,13 @@ export function AttendancePage() {
     setCorrReason('');
   };
 
-  const myAttendanceHistory = attendance.filter((a) => matchesCurrentEmployee(a.employee_id));
   const totalMonthHours = myAttendanceHistory.reduce((acc, curr) => acc + (curr.total_hours || 0), 0);
   const totalOvertimeHours = myAttendanceHistory.reduce((acc, curr) => acc + (curr.overtime_hours || 0), 0);
   const presentDaysCount = myAttendanceHistory.filter((a) => a.status === 'present' || a.status === 'late').length;
 
   return (
     <div className="space-y-4">
-      {/* Header Toolbar with Shift Policy Summary */}
+      {/* Header Toolbar with Shift Policy Summary & Export Tools */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1b202c] pb-3">
         <div>
           <div className="flex items-center gap-2">
@@ -132,15 +173,40 @@ export function AttendancePage() {
           </p>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setCorrectionModalOpen(true)}
-          className="h-7 text-xs border-[#222837] bg-[#12151e] hover:bg-[#181d28] gap-1.5"
-        >
-          <FileEdit className="h-3.5 w-3.5 text-blue-400" />
-          <span>Regularization Request</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* 1-Click Timesheet Exports */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            className="h-7 text-xs border-[#222837] bg-[#12151e] hover:bg-[#181d28] text-slate-300 gap-1.5"
+            title="Download CSV for Excel / Payroll"
+          >
+            <Download className="h-3.5 w-3.5 text-emerald-400" />
+            <span>Export CSV</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrintTimesheet}
+            className="h-7 text-xs border-[#222837] bg-[#12151e] hover:bg-[#181d28] text-slate-300 gap-1.5"
+            title="Print or Save PDF Timesheet Document"
+          >
+            <Printer className="h-3.5 w-3.5 text-blue-400" />
+            <span>Print / PDF</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCorrectionModalOpen(true)}
+            className="h-7 text-xs border-[#222837] bg-[#12151e] hover:bg-[#181d28] gap-1.5"
+          >
+            <FileEdit className="h-3.5 w-3.5 text-amber-400" />
+            <span>Regularization Request</span>
+          </Button>
+        </div>
       </div>
 
       {/* Main Punch Station & Summary Strip */}
@@ -160,10 +226,14 @@ export function AttendancePage() {
               ) : null}
               <span
                 className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
-                  isClockedIn ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-slate-800 text-slate-400 border-slate-700'
+                  isShiftCompleted
+                    ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                    : isClockedIn
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    : 'bg-slate-800 text-slate-400 border-slate-700'
                 }`}
               >
-                {isClockedIn ? 'SESSION ACTIVE' : 'INACTIVE'}
+                {isShiftCompleted ? 'SHIFT COMPLETED' : isClockedIn ? 'SESSION ACTIVE' : 'INACTIVE'}
               </span>
             </div>
           </div>
@@ -182,7 +252,7 @@ export function AttendancePage() {
             </div>
           </div>
 
-          {!isClockedIn && (
+          {!isClockedIn && !isShiftCompleted && (
             <div className="space-y-1">
               <span className="text-[10px] font-mono uppercase text-slate-400">Work Mode:</span>
               <div className="grid grid-cols-3 gap-1.5 font-mono text-[11px]">
@@ -204,26 +274,84 @@ export function AttendancePage() {
             </div>
           )}
 
-          <Button
-            size="sm"
-            variant={isClockedIn ? 'destructive' : 'default'}
-            onClick={handlePunchToggle}
-            className={`w-full h-8 text-xs font-mono uppercase tracking-wider font-bold gap-1.5 ${
-              !isClockedIn ? 'bg-blue-600 hover:bg-blue-500' : ''
-            }`}
-          >
-            {isClockedIn ? (
-              <>
-                <Square className="h-3 w-3 fill-current" />
-                <span>Punch Out Session</span>
-              </>
-            ) : (
-              <>
-                <Play className="h-3 w-3 fill-current" />
-                <span>Punch In Now</span>
-              </>
-            )}
-          </Button>
+          {isShiftCompleted ? (
+            <div className="space-y-2">
+              <Button
+                size="sm"
+                disabled
+                className="w-full h-8 text-xs font-mono uppercase tracking-wider font-bold gap-1.5 bg-[#181d29] text-slate-400 border border-slate-700/80 cursor-not-allowed select-none"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Shift Completed Today</span>
+              </Button>
+              <p className="text-[10px] text-slate-400 font-mono text-center">
+                Need to adjust your hours?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCorrDate(todayStr);
+                    setCorrIn(todayAttendance?.clock_in ? new Date(todayAttendance.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '09:30');
+                    setCorrOut(todayAttendance?.clock_out ? new Date(todayAttendance.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '18:30');
+                    setCorrectionModalOpen(true);
+                  }}
+                  className="text-blue-400 hover:underline font-semibold"
+                >
+                  Request Regularization
+                </button>
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {/* Break Mode Quick Controls */}
+              {isClockedIn && (
+                <div className="flex gap-2">
+                  {isOnBreak ? (
+                    <Button
+                      size="sm"
+                      type="button"
+                      onClick={handleEndBreak}
+                      className="w-full h-8 text-xs font-mono font-bold uppercase tracking-wider gap-1.5 bg-amber-500 hover:bg-amber-400 text-black border border-amber-400 shadow-lg shadow-amber-500/20 animate-pulse"
+                    >
+                      <Coffee className="h-3.5 w-3.5" />
+                      <span>Resume Shift ({breakElapsed} break)</span>
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      onClick={handleStartBreak}
+                      className="w-full h-8 text-xs font-mono font-bold uppercase tracking-wider gap-1.5 border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+                    >
+                      <Coffee className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Take Break / Lunch</span>
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              <Button
+                size="sm"
+                variant={isClockedIn ? 'destructive' : 'default'}
+                onClick={handlePunchToggle}
+                className={`w-full h-8 text-xs font-mono uppercase tracking-wider font-bold gap-1.5 ${
+                  !isClockedIn ? 'bg-blue-600 hover:bg-blue-500 shadow-md shadow-blue-600/20' : ''
+                }`}
+              >
+                {isClockedIn ? (
+                  <>
+                    <Square className="h-3 w-3 fill-current" />
+                    <span>Punch Out Session</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-3 w-3 fill-current" />
+                    <span>Punch In Now</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Right Metric Summary Matrix (7 cols) */}
@@ -267,6 +395,9 @@ export function AttendancePage() {
         </div>
       </div>
 
+      {/* Visual Weekly Timesheet Progress (40h Target Bar) */}
+      <WeeklyTimesheetBar employeeId={currentUser.id} targetWeeklyHours={40} />
+
       {/* Tabs */}
       <Tabs defaultValue="my-logs" className="space-y-3">
         <TabsList className="bg-[#0c0e15] border border-[#1b202c] h-8 p-0.5">
@@ -285,6 +416,7 @@ export function AttendancePage() {
                   <th className="py-2 px-3">Date</th>
                   <th className="py-2 px-3">Clock In</th>
                   <th className="py-2 px-3">Clock Out</th>
+                  <th className="py-2 px-3">Break</th>
                   <th className="py-2 px-3">Total Time</th>
                   <th className="py-2 px-3">Overtime</th>
                   <th className="py-2 px-3">Work Mode</th>
@@ -310,6 +442,9 @@ export function AttendancePage() {
                       <td className="py-2 px-3 font-mono">{formatTime(rec.clock_in)}</td>
                       <td className="py-2 px-3 font-mono">
                         {rec.clock_out ? formatTime(rec.clock_out) : 'In Progress'}
+                      </td>
+                      <td className="py-2 px-3 font-mono text-amber-400/90 font-medium">
+                        {rec.break_minutes ? `${rec.break_minutes}m` : '—'}
                       </td>
                       <td className="py-2 px-3 font-mono font-bold text-white">
                         {rec.total_hours ? `${rec.total_hours}h` : 'Active'}

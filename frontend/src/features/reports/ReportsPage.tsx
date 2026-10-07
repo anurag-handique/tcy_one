@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import {
   Download,
+  Printer,
   BarChart3,
   CheckCircle2,
   Clock,
@@ -20,6 +21,8 @@ import {
 } from 'lucide-react';
 import { useDataStore } from '@/stores/dataStore';
 import { Button } from '@/components/ui/Button';
+import { TeamCapacityHeatmap } from '@/components/shared/TeamCapacityHeatmap';
+import { exportAttendanceCSV, printTimesheetDocument } from '@/lib/exportUtils';
 import { toast } from 'sonner';
 
 export function ReportsPage() {
@@ -54,28 +57,16 @@ export function ReportsPage() {
   });
 
   const handleExportCSV = () => {
-    const headers = 'Employee,Date,ClockIn,ClockOut,Hours,Status,Mode\n';
-    const rows = attendance
-      .map(
-        (a) =>
-          `"${profiles.find((p) => p.id === a.employee_id)?.full_name || a.employee_id}","${a.date}","${a.clock_in}","${a.clock_out || ''}",${a.total_hours},"${a.status}","${a.work_mode}"`
-      )
-      .join('\n');
+    exportAttendanceCSV(attendance, profiles, `TCY_ONE_Attendance_Report_${new Date().toISOString().split('T')[0]}.csv`);
+    toast.success('Downloaded Full Attendance & Timesheet CSV');
+  };
 
-    const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `TCY_WorkHub_Attendance_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast.success('Downloaded Attendance CSV');
+  const handlePrintTimesheet = () => {
+    printTimesheetDocument('TCY ONE — Organization-Wide Timesheet Report', attendance, profiles);
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1b202c] pb-3">
         <div>
@@ -83,18 +74,35 @@ export function ReportsPage() {
             REPORTS & COMPLIANCE METRICS
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Timesheet analysis, task burnups, project velocity, and export tools.
+            Timesheet analysis, task burnups, project velocity, resource capacity, and export tools.
           </p>
         </div>
 
-        <Button
-          size="sm"
-          onClick={handleExportCSV}
-          className="h-7 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium gap-1"
-        >
-          <Download className="h-3.5 w-3.5" />
-          <span>Export CSV</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handlePrintTimesheet}
+            className="h-7 text-xs border-[#222837] bg-[#12151e] hover:bg-[#181d28] text-slate-300 gap-1.5"
+          >
+            <Printer className="h-3.5 w-3.5 text-blue-400" />
+            <span>Print Report</span>
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={handleExportCSV}
+            className="h-7 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium gap-1"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Export CSV</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Team Workload & Sprint Capacity Heatmap Section */}
+      <div className="space-y-2">
+        <TeamCapacityHeatmap />
       </div>
 
       {/* Grid */}

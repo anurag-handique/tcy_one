@@ -1,6 +1,8 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUIStore } from '@/stores/uiStore';
+import { useAuthStore } from '@/stores/authStore';
+import { useDataStore } from '@/stores/dataStore';
 import { toast } from 'sonner';
 
 export function useKeyboardShortcuts() {
@@ -15,6 +17,8 @@ export function useKeyboardShortcuts() {
     setPunchModalOpen,
     toggleSidebar,
   } = useUIStore();
+  const { currentUser } = useAuthStore();
+  const { attendance } = useDataStore();
 
   // For 2-key chord navigation like 'g' then 'd'
   const lastKeyRef = React.useRef<{ key: string; time: number } | null>(null);
@@ -59,10 +63,26 @@ export function useKeyboardShortcuts() {
       // 4. Action Hotkeys (Ctrl+Shift+key)
       if (cmdOrCtrl && e.shiftKey) {
         switch (e.key.toLowerCase()) {
-          case 'p': // Punch In / Punch Out
+          case 'p': { // Punch In / Punch Out
             e.preventDefault();
-            setPunchModalOpen(true);
+            const todayStr = new Date().toISOString().split('T')[0];
+            const todayAtt = attendance.find(
+              (a) =>
+                (a.employee_id === currentUser.id ||
+                  (currentUser.user_id && a.employee_id === currentUser.user_id) ||
+                  (currentUser.email && a.employee_id.toLowerCase() === currentUser.email.toLowerCase())) &&
+                a.date === todayStr
+            );
+            const isClockedIn = Boolean(todayAtt && !todayAtt.clock_out);
+            const isShiftCompleted = Boolean(todayAtt?.clock_in && todayAtt?.clock_out);
+
+            if (isShiftCompleted) {
+              toast.info('Shift completed for today. Submit an Attendance Regularization request if you need timing adjustments.');
+              return;
+            }
+            setPunchModalOpen(true, isClockedIn ? 'out' : 'in');
             return;
+          }
           case 't': // New Task
             e.preventDefault();
             setTaskModalOpen(true);

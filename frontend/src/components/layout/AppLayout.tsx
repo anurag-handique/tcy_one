@@ -15,22 +15,15 @@ import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useAttendanceReminder } from '@/hooks/useAttendanceReminder';
 import { formatWorkingDuration } from '@/lib/utils';
-import {
-  Minus,
-  Square,
-  X,
-  Clock,
-  Keyboard,
-  Layers,
-  Sparkles,
-} from 'lucide-react';
+import { Clock } from 'lucide-react';
 
 export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
-  const { attendance, tasks } = useDataStore();
+  const { attendance, tasks, subscribeToRealtimeNotifications } = useDataStore();
   const {
     densityMode,
     themePreset,
@@ -43,11 +36,23 @@ export function AppLayout() {
   // Initialize universal hotkeys listener
   useKeyboardShortcuts();
 
+  // Initialize evening auto-reminder for unfinished punches
+  useAttendanceReminder();
+
+  // Initialize Supabase Realtime WebSocket listener for live cross-device push notifications
+  React.useEffect(() => {
+    const unsubscribe = subscribeToRealtimeNotifications(currentUser.id);
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [currentUser.id, subscribeToRealtimeNotifications]);
+
   const todayStr = new Date().toISOString().split('T')[0];
   const todayAtt = attendance.find(
     (a) => a.employee_id === currentUser.id && a.date === todayStr
   );
   const isClockedIn = Boolean(todayAtt && !todayAtt.clock_out);
+  const isShiftCompleted = Boolean(todayAtt?.clock_in && todayAtt?.clock_out);
 
   const pendingTasksCount = tasks.filter(
     (t) => t.assignee_id === currentUser.id && t.status !== 'done'
@@ -62,50 +67,7 @@ export function AppLayout() {
       data-reduced-motion={reducedMotion ? 'true' : 'false'}
       className="flex h-screen w-screen flex-col overflow-hidden theme-app-bg text-slate-200 font-sans select-none antialiased"
     >
-      {/* 1. Desktop Window Native TitleBar */}
-      <div className="desktop-titlebar flex h-8 w-full items-center justify-between border-b theme-border theme-titlebar-bg px-3 text-[11px] text-slate-400 z-50">
-        {/* Left: App Identity */}
-        <div className="flex items-center gap-2 desktop-no-drag">
-          <img
-            src="/favicon (1).ico"
-            alt="TCY"
-            className="h-4 w-4 shrink-0 rounded-sm object-contain"
-          />
-          <span className="text-xs font-mono tracking-tight">
-            <span className="font-extrabold text-white">TCY</span>{' '}
-            <span className="font-semibold text-blue-400">One</span>
-          </span>
-          <span className="text-[#3b4356]">/</span>
-          <span className="text-slate-400 font-mono text-[10px]">v1.0.4</span>
-        </div>
-
-        {/* Center: Empty Title Bar spacer */}
-        <div className="flex-1" />
-
-        {/* Right: Window Controls */}
-        <div className="flex items-center desktop-no-drag">
-          <button
-            className="flex h-8 w-9 items-center justify-center text-slate-400 hover:bg-[#181d28] hover:text-white transition-colors"
-            title="Minimize"
-          >
-            <Minus className="h-3 w-3" />
-          </button>
-          <button
-            className="flex h-8 w-9 items-center justify-center text-slate-400 hover:bg-[#181d28] hover:text-white transition-colors"
-            title="Maximize / Restore"
-          >
-            <Square className="h-2.5 w-2.5" />
-          </button>
-          <button
-            className="flex h-8 w-9 items-center justify-center text-slate-400 hover:bg-rose-600 hover:text-white transition-colors"
-            title="Close"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Main Workspace Body */}
+      {/* Main Workspace Body */}
       <div className="flex flex-1 overflow-hidden">
         {/* Desktop Sidebar */}
         <Sidebar />
@@ -128,9 +90,13 @@ export function AppLayout() {
       <div className="flex h-6 w-full items-center justify-between border-t theme-border theme-titlebar-bg px-3 text-[11px] text-slate-400 z-40">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-400">
-            <Clock className="h-3 w-3 text-blue-400" />
+            <Clock className={`h-3 w-3 ${isClockedIn ? 'text-emerald-400' : isShiftCompleted ? 'text-emerald-500' : 'text-blue-400'}`} />
             <span>
-              {isClockedIn ? `PUNCHED IN: ${formatWorkingDuration(todayAtt?.clock_in, null)}` : 'OFF-DUTY'}
+              {isShiftCompleted
+                ? `SHIFT COMPLETED (${formatWorkingDuration(todayAtt?.clock_in, todayAtt?.clock_out)})`
+                : isClockedIn
+                ? `PUNCHED IN: ${formatWorkingDuration(todayAtt?.clock_in, null)}`
+                : 'OFF-DUTY'}
             </span>
           </div>
 

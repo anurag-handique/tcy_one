@@ -12,13 +12,26 @@ import {
   Shield,
   Layers,
   CheckCheck,
+  CheckCircle2,
   Building,
+  Monitor,
+  Calendar,
+  MessageSquare,
+  Video,
+  Info,
+  Coffee,
+  Download,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useDataStore } from '@/stores/dataStore';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { formatWorkingDuration, formatRelativeTime } from '@/lib/utils';
+import {
+  getDesktopNotificationPermission,
+  requestDesktopNotificationPermission,
+} from '@/lib/desktopNotification';
 import { UserAvatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import {
@@ -35,15 +48,32 @@ export function TopBar() {
   const location = useLocation();
   const { currentUser, logout } = useAuthStore();
   const { setCommandPaletteOpen, setPunchModalOpen } = useUIStore();
-  const { attendance, notifications, markNotificationAsRead, markAllNotificationsAsRead, profiles, departments, designations } = useDataStore();
+  const { isInstallable, installApp } = usePWAInstall();
+  const { attendance, notifications, markNotificationAsRead, markAllNotificationsAsRead, profiles, departments, designations, startBreak, endBreak } = useDataStore();
+
+
+  const [notifPermission, setNotifPermission] = React.useState<NotificationPermission>(getDesktopNotificationPermission());
+
+  const handleRequestPermission = async () => {
+    const res = await requestDesktopNotificationPermission();
+    setNotifPermission(res);
+    if (res === 'granted') {
+      toast.success('System desktop notifications enabled (Windows & macOS)');
+    } else if (res === 'denied') {
+      toast.error('System notifications were blocked in your browser settings.');
+    }
+  };
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayAttendance = attendance.find(
     (a) => a.employee_id === currentUser.id && a.date === todayStr
   );
   const isClockedIn = Boolean(todayAttendance && !todayAttendance.clock_out);
+  const isShiftCompleted = Boolean(todayAttendance?.clock_in && todayAttendance?.clock_out);
+  const isOnBreak = Boolean(isClockedIn && todayAttendance?.break_start);
 
   const [elapsed, setElapsed] = React.useState<string>('0h 0m');
+  const [breakElapsed, setBreakElapsed] = React.useState<string>('0m');
 
   React.useEffect(() => {
     const update = () => {
@@ -54,14 +84,33 @@ export function TopBar() {
       } else {
         setElapsed('0h 0m');
       }
+
+      if (todayAttendance?.break_start) {
+        const breakMins = Math.max(1, Math.floor((new Date().getTime() - new Date(todayAttendance.break_start).getTime()) / 60000));
+        setBreakElapsed(`${breakMins}m`);
+      }
     };
     update();
-    const interval = setInterval(update, 30000);
+    const interval = setInterval(update, 10000);
     return () => clearInterval(interval);
   }, [todayAttendance]);
 
   const handleToggleAttendance = () => {
+    if (isShiftCompleted) {
+      toast.info('Shift completed for today. Submit an Attendance Regularization request if you need timing adjustments.');
+      return;
+    }
     setPunchModalOpen(true, isClockedIn ? 'out' : 'in');
+  };
+
+  const handleStartBreak = () => {
+    startBreak(currentUser.id);
+    toast.success('☕ Break mode activated. Enjoy your lunch/tea break!');
+  };
+
+  const handleEndBreak = () => {
+    endBreak(currentUser.id);
+    toast.success('💻 Break ended. Welcome back, shift resumed!');
   };
 
   const getPageTitle = () => {
@@ -80,8 +129,26 @@ export function TopBar() {
     return 'Workspace';
   };
 
-  const myNotifications = notifications.filter((n) => n.employee_id === currentUser?.id);
+  const myProfile = profiles.find((p) => p.id === currentUser?.id || p.user_id === currentUser?.id);
+  const myNotifications = React.useMemo(() => {
+    const raw = notifications.filter(
+      (n) =>
+        n.employee_id === currentUser?.id ||
+        (myProfile && (n.employee_id === myProfile.id || n.employee_id === myProfile.user_id))
+    );
+    // Deduplicate by ID and content signature
+    const seen = new Set<string>();
+    return raw.filter((n) => {
+      const contentKey = `${n.title}|${n.message}|${(n.created_at || '').slice(0, 16)}`;
+      if (seen.has(n.id) || seen.has(contentKey)) return false;
+      seen.add(n.id);
+      seen.add(contentKey);
+      return true;
+    });
+  }, [notifications, currentUser?.id, myProfile]);
+
   const unreadNotifs = myNotifications.filter((n) => !n.is_read);
+
 
   return (
     <header className="flex h-12 w-full items-center justify-between border-b theme-border theme-surface-bg px-4 z-20 select-none">
@@ -115,23 +182,70 @@ export function TopBar() {
       {/* Right Action Tools */}
       <div className="flex items-center gap-2">
         {/* Attendance Punch Mini-Station */}
-        <div className="flex items-center rounded-full border border-[#212735] bg-[#121620] pl-2.5 pr-1 py-1 gap-2 shadow-sm">
-          <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-300">
-            <Clock className={`h-3.5 w-3.5 ${isClockedIn ? 'text-emerald-400 animate-pulse' : 'text-blue-400'}`} />
+        <div className="flex items-center rounded-full border border-[#212735] bg-[#121620] pl-2.5 pr-1 py-1 gap-1.5 shadow-sm">
+          <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-300 mr-1">
+            <Clock className={`h-3.5 w-3.5 ${isOnBreak ? 'text-amber-400 animate-bounce' : isClockedIn ? 'text-emerald-400 animate-pulse' : isShiftCompleted ? 'text-emerald-500' : 'text-blue-400'}`} />
             <span className="font-semibold text-slate-200">{elapsed}</span>
           </div>
-          <button
-            onClick={handleToggleAttendance}
-            className={`flex items-center gap-1.5 text-[10px] font-bold uppercase px-3 py-1 rounded-full transition-all duration-150 shadow-sm ${
-              isClockedIn
-                ? 'bg-rose-500/15 text-rose-300 hover:bg-rose-600 hover:text-white border border-rose-500/30'
-                : 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-500/30'
-            }`}
-          >
-            {isClockedIn ? <Square className="h-2.5 w-2.5 fill-current" /> : <Play className="h-2.5 w-2.5 fill-current" />}
-            <span>{isClockedIn ? 'Punch Out' : 'Punch In'}</span>
-          </button>
+
+          {/* Break Mode Quick Toggle */}
+          {isClockedIn && (
+            isOnBreak ? (
+              <button
+                onClick={handleEndBreak}
+                title="End break and resume shift"
+                className="flex items-center gap-1 text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-black border border-amber-500/40 transition-all shadow-sm animate-pulse"
+              >
+                <Coffee className="h-2.5 w-2.5" />
+                <span>Resume ({breakElapsed})</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleStartBreak}
+                title="Take Lunch / Tea break"
+                className="flex items-center gap-1 text-[10px] font-semibold uppercase px-2.5 py-1 rounded-full bg-[#181d29] text-amber-300/80 hover:text-amber-200 hover:bg-amber-500/15 border border-[#272f42] hover:border-amber-500/30 transition-all"
+              >
+                <Coffee className="h-2.5 w-2.5 text-amber-400" />
+                <span>Break</span>
+              </button>
+            )
+          )}
+
+          {isShiftCompleted ? (
+            <button
+              disabled
+              title="Shift completed for today. Submit an Attendance Regularization request if needed."
+              className="flex items-center gap-1.5 text-[10px] font-bold uppercase px-3 py-1 rounded-full bg-[#181d29] text-slate-400 border border-slate-700/60 cursor-not-allowed select-none"
+            >
+              <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
+              <span>Shift Done</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleToggleAttendance}
+              className={`flex items-center gap-1.5 text-[10px] font-bold uppercase px-3 py-1 rounded-full transition-all duration-150 shadow-sm ${
+                isClockedIn
+                  ? 'bg-rose-500/15 text-rose-300 hover:bg-rose-600 hover:text-white border border-rose-500/30'
+                  : 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-500/30'
+              }`}
+            >
+              {isClockedIn ? <Square className="h-2.5 w-2.5 fill-current" /> : <Play className="h-2.5 w-2.5 fill-current" />}
+              <span>{isClockedIn ? 'Punch Out' : 'Punch In'}</span>
+            </button>
+          )}
         </div>
+
+        {/* Install Desktop PWA Quick Button */}
+        {isInstallable && (
+          <button
+            onClick={installApp}
+            title="Install TCY One Desktop App (Windows / macOS)"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-600/15 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 text-[10px] font-semibold transition-all shadow-sm animate-pulse"
+          >
+            <Download className="h-3 w-3" />
+            <span className="hidden sm:inline">Install App</span>
+          </button>
+        )}
 
         {/* Notifications */}
         <DropdownMenu>
@@ -145,34 +259,92 @@ export function TopBar() {
               )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80 border-[#222837] bg-[#11141c] shadow-2xl p-0 rounded-none">
-            <div className="flex items-center justify-between p-2 border-b border-[#1c2230]">
-              <span className="text-xs font-semibold text-white">Notifications ({unreadNotifs.length})</span>
+
+          <DropdownMenuContent align="end" className="w-84 border-[#222837] bg-[#0e121a] shadow-2xl p-0 rounded-xl overflow-hidden">
+            {/* Header with Title & Read All */}
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#1c2230] bg-[#121622]">
+              <div className="flex items-center gap-1.5">
+                <Bell className="h-3.5 w-3.5 text-blue-400" />
+                <span className="text-xs font-semibold text-white">Notifications ({unreadNotifs.length})</span>
+              </div>
               {unreadNotifs.length > 0 && (
                 <button
                   onClick={() => markAllNotificationsAsRead(currentUser.id)}
-                  className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                  className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium transition-colors"
                 >
                   <CheckCheck className="h-3 w-3" />
                   Mark all read
                 </button>
               )}
             </div>
-            <div className="max-h-64 overflow-y-auto divide-y divide-[#1c2230]">
+
+            {/* Desktop Notification System Permission Pill */}
+            {notifPermission !== 'granted' && (
+              <div className="px-3 py-2 bg-blue-500/10 border-b border-blue-500/20 flex items-center justify-between text-[11px]">
+                <div className="flex items-center gap-1.5 text-blue-300">
+                  <Monitor className="h-3 w-3 shrink-0" />
+                  <span>Desktop OS Alerts</span>
+                </div>
+                <button
+                  onClick={handleRequestPermission}
+                  className="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-[10px] transition-colors shadow-sm"
+                >
+                  Enable
+                </button>
+              </div>
+            )}
+
+            {/* Notification Items List */}
+            <div className="max-h-72 overflow-y-auto divide-y divide-[#181d28]">
               {myNotifications.length === 0 ? (
-                <div className="py-4 text-center text-[11px] text-slate-400">No new alerts</div>
+                <div className="py-6 text-center text-xs text-slate-500">No new notifications</div>
               ) : (
                 myNotifications.map((n) => (
                   <div
                     key={n.id}
-                    onClick={() => markNotificationAsRead(n.id)}
-                    className={`p-2 text-xs hover:bg-[#171b26] cursor-pointer ${!n.is_read ? 'bg-blue-950/20' : ''}`}
+                    onClick={() => {
+                      markNotificationAsRead(n.id);
+                      if (n.action_url) {
+                        window.location.hash = n.action_url;
+                      }
+                    }}
+                    className={`p-3 text-xs hover:bg-[#141824] cursor-pointer transition-colors ${
+                      !n.is_read ? 'bg-blue-500/[0.06]' : ''
+                    }`}
                   >
-                    <div className="flex items-center justify-between font-medium text-slate-200 mb-0.5">
-                      <span>{n.title}</span>
-                      <span className="text-[9px] text-slate-400 font-mono">{formatRelativeTime(n.created_at)}</span>
+                    <div className="flex items-start gap-2">
+                      <div className="mt-0.5 shrink-0">
+                        {n.type === 'attendance' ? (
+                          <div className="h-5 w-5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+                            <Clock className="h-3 w-3" />
+                          </div>
+                        ) : n.type === 'task' ? (
+                          <div className="h-5 w-5 rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center justify-center">
+                            <Layers className="h-3 w-3" />
+                          </div>
+                        ) : n.type === 'leave' ? (
+                          <div className="h-5 w-5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center">
+                            <Calendar className="h-3 w-3" />
+                          </div>
+                        ) : (
+                          <div className="h-5 w-5 rounded-md bg-purple-500/15 text-purple-400 border border-purple-500/30 flex items-center justify-center">
+                            <Info className="h-3 w-3" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0 space-y-0.5">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className={`font-semibold truncate text-[11px] ${!n.is_read ? 'text-white' : 'text-slate-300'}`}>
+                            {n.title}
+                          </span>
+                          <span className="text-[9px] text-slate-500 font-mono shrink-0">
+                            {formatRelativeTime(n.created_at)}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-snug break-words">{n.message}</p>
+                      </div>
                     </div>
-                    <p className="text-[10px] text-slate-400">{n.message}</p>
                   </div>
                 ))
               )}
