@@ -35,6 +35,8 @@ jobs:
         working-directory: frontend
         run: npx electron-builder --mac --universal --publish never
         env:
+          CI: false
+          EP_PREVENT_PUBLISH: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload macOS Artifacts to GitHub Actions
