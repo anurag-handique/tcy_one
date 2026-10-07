@@ -29,18 +29,30 @@ What this produces:
 ==============================================================================
 2. BUILD MACOS DESKTOP PRODUCTION INSTALLERS (.DMG & .ZIP)
 ==============================================================================
-Command:
-  npm run electron:build:mac
+Option A: Cloud Build via GitHub Actions (Recommended if you are on Windows!)
+  1. Open your GitHub Repository in your browser:
+     https://github.com/anurag-handique/tcy_one/actions
+  2. Click on "Build macOS Desktop App" in the left sidebar.
+  3. Click "Run workflow" -> select branch "main" -> click "Run workflow".
+  4. In ~2-3 minutes, download `tcy-one-macos-installers` artifact from the completed run.
+  5. It contains:
+     • frontend/release/TCY_One_1.0.2.dmg (Universal: Intel & Apple Silicon M1/M2/M3/M4)
+     • frontend/release/TCY_One_1.0.2.zip
 
-What this produces:
-  • Standard macOS Drag-and-Drop Disk Image: 
-    frontend/release/TCY_One_1.0.2.dmg
-  
-  • macOS Standalone Archive: 
-    frontend/release/TCY_One_1.0.2.zip
-  
-  • macOS Unpacked App Bundle: 
-    frontend/release/mac/TCY One.app
+Option B: On a Physical Mac Machine:
+  Command:
+    cd frontend
+    npm run electron:build:mac
+
+  What this produces:
+    • Standard macOS Drag-and-Drop Disk Image: 
+      frontend/release/TCY_One_1.0.2.dmg
+    
+    • macOS Standalone Archive: 
+      frontend/release/TCY_One_1.0.2.zip
+    
+    • macOS Unpacked App Bundle: 
+      frontend/release/mac/TCY One.app
 
 
 ==============================================================================

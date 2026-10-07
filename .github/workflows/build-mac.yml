@@ -1,0 +1,48 @@
+name: Build macOS Desktop App
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Web App
+        working-directory: frontend
+        run: npm run build
+
+      - name: Build macOS App (.dmg & .zip)
+        working-directory: frontend
+        run: npx electron-builder --mac --universal
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS Artifacts to GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: tcy-one-macos-installers
+          path: |
+            frontend/release/*.dmg
+            frontend/release/*.zip
+            frontend/release/*.blockmap
+          if-no-files-found: error
