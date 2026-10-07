@@ -512,7 +512,7 @@ export const useDataStore = create<DataState>()(
     if (supabase && isSupabaseConfigured) {
       (async () => {
         try {
-          await supabase
+          const { error } = await supabase
             .from('attendance')
             .update({
               clock_out: clockOutTime,
@@ -525,6 +525,21 @@ export const useDataStore = create<DataState>()(
             })
             .eq('employee_id', employeeId)
             .eq('date', today);
+
+          if (error && (error.code === 'PGRST204' || error.message?.includes('break_minutes'))) {
+            // Fallback for when break_minutes column has not been added via SQL migration yet
+            await supabase
+              .from('attendance')
+              .update({
+                clock_out: clockOutTime,
+                total_hours: hours,
+                overtime_hours: overtime,
+                punch_out_location: updated.punch_out_location,
+                notes: updatedNotes,
+              })
+              .eq('employee_id', employeeId)
+              .eq('date', today);
+          }
         } catch (err) {
           console.warn('Supabase attendance clock-out sync warning:', err);
         }
@@ -568,7 +583,12 @@ export const useDataStore = create<DataState>()(
     }));
 
     if (supabase && isSupabaseConfigured) {
-      supabase.from('attendance').update({ break_start: nowStr }).eq('employee_id', employeeId).eq('date', today).then();
+      supabase
+        .from('attendance')
+        .update({ break_start: nowStr })
+        .eq('employee_id', employeeId)
+        .eq('date', today)
+        .then(null, (err: any) => console.warn('Supabase startBreak sync warning:', err?.message || err));
     }
   },
 
@@ -595,7 +615,12 @@ export const useDataStore = create<DataState>()(
     }));
 
     if (supabase && isSupabaseConfigured) {
-      supabase.from('attendance').update({ break_start: null, break_minutes: totalBreak }).eq('employee_id', employeeId).eq('date', today).then();
+      supabase
+        .from('attendance')
+        .update({ break_start: null, break_minutes: totalBreak })
+        .eq('employee_id', employeeId)
+        .eq('date', today)
+        .then(null, (err: any) => console.warn('Supabase endBreak sync warning:', err?.message || err));
     }
   },
 
@@ -2093,17 +2118,36 @@ export const useDataStore = create<DataState>()(
         }));
 
         if (supabase && isSupabaseConfigured) {
-          supabase
-            .from('notifications')
-            .insert({
-              employee_id: canonicalEmpId,
-              title: notif.title,
-              message: notif.message,
-              type: notif.type,
-              is_read: false,
-              action_url: notif.action_url,
-            })
-            .then();
+          (async () => {
+            try {
+              const { error } = await supabase
+                .from('notifications')
+                .insert({
+                  employee_id: canonicalEmpId,
+                  title: notif.title,
+                  message: notif.message,
+                  type: notif.type,
+                  is_read: false,
+                  action_url: notif.action_url,
+                });
+
+              if (error && (error.code === '23514' || error.message?.includes('notifications_type_check'))) {
+                // If type violates DB check constraint before SQL migration is applied, fallback safely to 'info'
+                await supabase
+                  .from('notifications')
+                  .insert({
+                    employee_id: canonicalEmpId,
+                    title: notif.title,
+                    message: notif.message,
+                    type: 'info',
+                    is_read: false,
+                    action_url: notif.action_url,
+                  });
+              }
+            } catch (err) {
+              console.warn('Supabase notifications insert error:', err);
+            }
+          })();
         }
       },
 

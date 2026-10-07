@@ -1,0 +1,61 @@
+{
+  "appId": "com.thecodeyogi.tcyone",
+  "productName": "TCY One",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "public/**/*",
+    "package.json"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "public/app-icon.png",
+    "artifactName": "${productName} Setup ${version}.${ext}"
+  },
+  "portable": {
+    "artifactName": "${productName} ${version} Portable.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "TCY One",
+    "artifactName": "${productName} Setup ${version}.${ext}"
+  },
+  "mac": {
+    "target": ["dmg", "zip"],
+    "icon": "public/app-icon.png",
+    "category": "public.app-category.productivity",
+    "darkModeSupport": true,
+    "artifactName": "${productName} ${version}.${ext}"
+  },
+  "dmg": {
+    "title": "TCY One Installer",
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+    ]
+  }
+}

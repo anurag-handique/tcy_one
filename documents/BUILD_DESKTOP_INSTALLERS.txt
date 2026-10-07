@@ -1,0 +1,64 @@
+==============================================================================
+TCY ONE — PRODUCTION DESKTOP APPLICATION BUILD GUIDE (v1.0.2)
+==============================================================================
+
+[IMPORTANT: ALWAYS RUN THESE COMMANDS FROM THE `frontend` DIRECTORY]
+Step 0: Navigate into the frontend directory:
+  cd frontend
+
+
+==============================================================================
+1. BUILD WINDOWS DESKTOP PRODUCTION INSTALLERS (.EXE)
+==============================================================================
+Command:
+  npm run electron:build:win
+
+What this produces:
+  • Standard NSIS Setup Wizard Installer: 
+    frontend\release\TCY One Setup 1.0.2.exe
+    (Production ready installer with custom branding, desktop & Start Menu shortcuts)
+  
+  • Standalone Portable Executable: 
+    frontend\release\TCY One 1.0.2 Portable.exe
+    (Self-contained single binary, double-click and run immediately)
+  
+  • Unpacked Binary Folder: 
+    frontend\release\win-unpacked\TCY One.exe
+
+
+==============================================================================
+2. BUILD MACOS DESKTOP PRODUCTION INSTALLERS (.DMG & .ZIP)
+==============================================================================
+Command:
+  npm run electron:build:mac
+
+What this produces:
+  • Standard macOS Drag-and-Drop Disk Image: 
+    frontend/release/TCY One 1.0.2.dmg
+  
+  • macOS Standalone Archive: 
+    frontend/release/TCY One 1.0.2-mac.zip
+  
+  • macOS Unpacked App Bundle: 
+    frontend/release/mac/TCY One.app
+
+
+==============================================================================
+3. BUILD ALL PLATFORMS AT ONCE
+==============================================================================
+Command:
+  npm run electron:build
+
+
+==============================================================================
+4. LOCAL DESKTOP DEVELOPMENT & LIVE PREVIEW
+==============================================================================
+Command:
+  npm run electron:dev
+
+
+==============================================================================
+5. CLEAN REBUILD
+==============================================================================
+Command:
+  npm run build && npx electron-builder --win --clean
