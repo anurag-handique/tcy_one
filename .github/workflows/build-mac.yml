@@ -33,7 +33,7 @@ jobs:
 
       - name: Build macOS App (.dmg & .zip)
         working-directory: frontend
-        run: npx electron-builder --mac --universal -c.publish=never
+        run: npx electron-builder --mac --universal --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

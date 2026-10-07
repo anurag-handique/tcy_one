@@ -15,6 +15,7 @@ import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { AppRelease, DesktopPlatform } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { toast } from 'sonner';
+import appIcon from '@/assets/app-icon.png';
 
 export function DownloadPage() {
   const navigate = useNavigate();
@@ -93,10 +94,7 @@ export function DownloadPage() {
           <div className="flex justify-center">
             <div className="relative p-2.5 rounded-2xl bg-gradient-to-b from-[#161c2c] to-[#0d121c] border border-slate-700/60 shadow-[0_10px_30px_rgba(0,0,0,0.6),0_0_20px_rgba(59,130,246,0.2)]">
               <img
-                src="/app-icon.png"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/icon.png';
-                }}
+                src={appIcon}
                 alt="TCY ONE Desktop App Icon"
                 className="h-16 w-16 sm:h-20 sm:w-20 rounded-xl object-contain filter drop-shadow-md"
               />
