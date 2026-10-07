@@ -22,10 +22,10 @@
       }
     ],
     "icon": "public/app-icon.png",
-    "artifactName": "${productName} Setup ${version}.${ext}"
+    "artifactName": "TCY_One_Setup_${version}.${ext}"
   },
   "portable": {
-    "artifactName": "${productName} ${version} Portable.${ext}"
+    "artifactName": "TCY_One_${version}_Portable.${ext}"
   },
   "nsis": {
     "oneClick": false,
@@ -36,14 +36,14 @@
     "shortcutName": "TCY One",
     "uninstallDisplayName": "TCY One ${version}",
     "deleteAppDataOnUninstall": true,
-    "artifactName": "${productName} Setup ${version}.${ext}"
+    "artifactName": "TCY_One_Setup_${version}.${ext}"
   },
   "mac": {
     "target": ["dmg", "zip"],
     "icon": "public/app-icon.png",
     "category": "public.app-category.productivity",
     "darkModeSupport": true,
-    "artifactName": "${productName} ${version}.${ext}"
+    "artifactName": "TCY_One_${version}.${ext}"
   },
   "dmg": {
     "title": "TCY One Installer",

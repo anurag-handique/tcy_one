@@ -49,7 +49,7 @@ export const INITIAL_APP_RELEASES: AppRelease[] = [
     id: 'rel-win-1',
     platform: 'windows',
     version: '1.0.2',
-    file_name: 'TCY One Setup 1.0.2.exe',
+    file_name: 'TCY_One_Setup_1.0.2.exe',
     file_size: 89400000,
     file_url: '#',
     storage_path: 'windows/TCY_One_Setup_1.0.2.exe',
@@ -60,7 +60,7 @@ export const INITIAL_APP_RELEASES: AppRelease[] = [
     id: 'rel-mac-1',
     platform: 'macos',
     version: '1.0.2',
-    file_name: 'TCY One 1.0.2.dmg',
+    file_name: 'TCY_One_1.0.2.dmg',
     file_size: 94200000,
     file_url: '#',
     storage_path: 'macos/TCY_One_1.0.2.dmg',
@@ -2494,7 +2494,7 @@ export const useDataStore = create<DataState>()(
       registerAppReleaseUrl: async ({ platform, version, fileName, fileUrl, fileSize, releaseNotes, uploadedBy }) => {
         const cleanPlatform = platform;
         const cleanVersion = version.trim() || '1.0.2';
-        const cleanFileName = fileName.trim() || (cleanPlatform === 'macos' ? `TCY One ${cleanVersion}.dmg` : `TCY One Setup ${cleanVersion}.exe`);
+        const cleanFileName = fileName.trim() || (cleanPlatform === 'macos' ? `TCY_One_${cleanVersion}.dmg` : `TCY_One_Setup_${cleanVersion}.exe`);
         const cleanUrl = fileUrl.trim();
         const estimatedSize = fileSize || (cleanPlatform === 'macos' ? 94200000 : 89400000);
 

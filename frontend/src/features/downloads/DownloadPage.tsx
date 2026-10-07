@@ -51,7 +51,7 @@ export function DownloadPage() {
   const handleDownload = (platform: DesktopPlatform) => {
     const release = platform === 'macos' ? macRelease : windowsRelease;
     const url = release?.file_url;
-    const defaultFilename = platform === 'macos' ? 'TCY One 1.0.2.dmg' : 'TCY One Setup 1.0.2.exe';
+    const defaultFilename = platform === 'macos' ? 'TCY_One_1.0.2.dmg' : 'TCY_One_Setup_1.0.2.exe';
 
     if (url && url !== '#' && url !== '') {
       toast.success(`Starting download for ${release?.file_name || defaultFilename}...`);

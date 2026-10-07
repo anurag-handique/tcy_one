@@ -15,11 +15,11 @@ Command:
 
 What this produces:
   • Standard NSIS Setup Wizard Installer: 
-    frontend\release\TCY One Setup 1.0.2.exe
+    frontend\release\TCY_One_Setup_1.0.2.exe
     (Production ready installer with custom branding, desktop & Start Menu shortcuts)
   
   • Standalone Portable Executable: 
-    frontend\release\TCY One 1.0.2 Portable.exe
+    frontend\release\TCY_One_1.0.2_Portable.exe
     (Self-contained single binary, double-click and run immediately)
   
   • Unpacked Binary Folder: 
@@ -34,10 +34,10 @@ Command:
 
 What this produces:
   • Standard macOS Drag-and-Drop Disk Image: 
-    frontend/release/TCY One 1.0.2.dmg
+    frontend/release/TCY_One_1.0.2.dmg
   
   • macOS Standalone Archive: 
-    frontend/release/TCY One 1.0.2-mac.zip
+    frontend/release/TCY_One_1.0.2.zip
   
   • macOS Unpacked App Bundle: 
     frontend/release/mac/TCY One.app

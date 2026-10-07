@@ -300,7 +300,7 @@ export function SettingsPage() {
         const result = await registerAppReleaseUrl({
           platform: uploadPlatform,
           version: uploadVersion.trim(),
-          fileName: uploadPlatform === 'macos' ? `TCY One ${uploadVersion.trim()}.dmg` : `TCY One Setup ${uploadVersion.trim()}.exe`,
+          fileName: uploadPlatform === 'macos' ? `TCY_One_${uploadVersion.trim()}.dmg` : `TCY_One_Setup_${uploadVersion.trim()}.exe`,
           fileUrl: uploadDirectUrl.trim(),
           releaseNotes: uploadNotes.trim(),
           uploadedBy: currentUser?.id,
