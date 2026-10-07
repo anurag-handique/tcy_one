@@ -1548,14 +1548,6 @@ export function SettingsPage() {
                 <ExternalLink className="h-3 w-3" />
               </Button>
             </div>
-
-            {/* Notice Banner */}
-            <div className="flex items-start gap-2.5 p-3 bg-blue-950/20 border border-blue-900/40 text-[11px] font-mono text-blue-300">
-              <Sparkles className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
-              <div>
-                <strong className="text-white">Automatic Storage Replacement:</strong> When a Super Admin uploads a newer installer for Windows or macOS, any previous release binary for that platform is automatically purged from Supabase Storage (<code className="text-blue-200">app-releases</code> bucket) to preserve storage limits.
-              </div>
-            </div>
           </div>
 
           {/* Super Admin Upload Form */}
