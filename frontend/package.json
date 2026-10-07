@@ -17,9 +17,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on tcp:5173 && electron .\"",
-    "electron:build": "npm run build && electron-builder",
-    "electron:build:win": "npm run build && electron-builder --win",
-    "electron:build:mac": "npm run build && electron-builder --mac"
+    "electron:build": "npm run build && electron-builder --publish never",
+    "electron:build:win": "npm run build && electron-builder --win --publish never",
+    "electron:build:mac": "npm run build && electron-builder --mac --publish never"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1147.0",
