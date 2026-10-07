@@ -61,6 +61,8 @@ const s3Client = new S3Client({
     accessKeyId,
     secretAccessKey,
   },
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 });
 
 function getContentType(filename) {
