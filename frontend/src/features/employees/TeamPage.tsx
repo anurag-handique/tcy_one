@@ -72,6 +72,7 @@ export function TeamPage() {
   const [editRole, setEditRole] = React.useState<UserRole>('employee');
   const [editDeptId, setEditDeptId] = React.useState('');
   const [editDesignationTitle, setEditDesignationTitle] = React.useState('');
+  const [editCustomDesignation, setEditCustomDesignation] = React.useState('');
   const [editPhoneDigits, setEditPhoneDigits] = React.useState('');
   const [editWorkLocation, setEditWorkLocation] = React.useState<'Office' | 'WFH' | 'Hybrid'>('Office');
   const [editStatus, setEditStatus] = React.useState<EmploymentStatus>('active');
@@ -112,7 +113,9 @@ export function TeamPage() {
     setEditDeptId(profile.department_id || '');
     
     const desigObj = designations.find((d) => d.id === profile.designation_id);
-    setEditDesignationTitle(profile.designation_title || desigObj?.title || 'Software Engineer');
+    const existingTitle = profile.designation_title || desigObj?.title || 'Software Engineer';
+    setEditDesignationTitle(existingTitle);
+    setEditCustomDesignation('');
 
     const cleanPhone = (profile.phone || '').replace(/\D/g, '').slice(-10);
     setEditPhoneDigits(cleanPhone);
@@ -140,6 +143,15 @@ export function TeamPage() {
       return;
     }
 
+    const finalDesignationTitle =
+      editDesignationTitle === '__custom__'
+        ? editCustomDesignation.trim() || 'Software Engineer'
+        : editDesignationTitle.trim() || 'Software Engineer';
+
+    const matchedDesig = designations.find(
+      (d) => d.title.toLowerCase() === finalDesignationTitle.toLowerCase()
+    );
+
     setSavingEdit(true);
     const formattedPhone = editPhoneDigits.trim() ? `+91 ${editPhoneDigits.trim()}` : undefined;
 
@@ -148,7 +160,8 @@ export function TeamPage() {
       email: editEmail.trim().toLowerCase(),
       role: editRole,
       department_id: editDeptId ? editDeptId : undefined,
-      designation_title: editDesignationTitle.trim() || 'Software Engineer',
+      designation_id: matchedDesig ? matchedDesig.id : undefined,
+      designation_title: finalDesignationTitle,
       phone: formattedPhone,
       work_location: editWorkLocation,
       employment_status: editStatus,
@@ -722,14 +735,43 @@ export function TeamPage() {
             </div>
 
             <div>
-              <label className="text-[10px] font-mono uppercase text-slate-400">Designation / Job Title</label>
-              <Input
+              <label className="text-[10px] font-mono uppercase text-slate-400">Designation / Role Title</label>
+              <select
                 value={editDesignationTitle}
-                onChange={(e) => setEditDesignationTitle(e.target.value)}
-                placeholder="e.g. Senior Full Stack Engineer"
-                className="h-7 mt-1 bg-[#0b0e14] border-[#1b202c] text-xs font-mono"
+                onChange={(e) => {
+                  setEditDesignationTitle(e.target.value);
+                  if (e.target.value !== '__custom__') {
+                    setEditCustomDesignation('');
+                  }
+                }}
+                className="h-7 w-full rounded border border-[#1b202c] bg-[#0b0e14] px-2 text-xs text-white font-mono mt-1"
                 required
-              />
+              >
+                <option value="">Select Designation...</option>
+                {/* Preserve current designation if not found in database designations list */}
+                {editDesignationTitle &&
+                  editDesignationTitle !== '__custom__' &&
+                  !designations.some((d) => d.title.toLowerCase() === editDesignationTitle.toLowerCase()) && (
+                    <option value={editDesignationTitle}>{editDesignationTitle} (Current)</option>
+                  )}
+                {designations.map((d) => (
+                  <option key={d.id} value={d.title}>
+                    {d.title} {d.level ? `— ${d.level}` : ''}
+                  </option>
+                ))}
+                <option value="__custom__">+ Enter Custom Designation...</option>
+              </select>
+
+              {editDesignationTitle === '__custom__' && (
+                <Input
+                  value={editCustomDesignation}
+                  onChange={(e) => setEditCustomDesignation(e.target.value)}
+                  placeholder="e.g. Lead Architect, Senior Developer..."
+                  className="h-7 mt-1.5 bg-[#0b0e14] border-blue-500/50 text-xs font-mono"
+                  autoFocus
+                  required
+                />
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-2">
