@@ -86,11 +86,6 @@ export function DownloadPage() {
             <ArrowLeft className="h-3.5 w-3.5" />
             <span>Back to Dashboard</span>
           </button>
-
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/80 border border-slate-800 text-[11px] font-mono text-slate-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span>v1.0.2 Production</span>
-          </div>
         </div>
 
         {/* Minimal Hero Section with Logo */}
