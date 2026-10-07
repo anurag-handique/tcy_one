@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Profile, UserRole } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import appIcon from '../assets/app-icon.png';
 
 export const DEFAULT_USER: Profile = {
   id: 'usr-default',
@@ -12,7 +13,7 @@ export const DEFAULT_USER: Profile = {
   designation_title: 'Chief Technology Officer & Founder',
   employment_status: 'active',
   joining_date: '2024-01-01',
-  avatar_url: '/favicon (1).ico',
+  avatar_url: appIcon,
   work_location: 'Headquarters',
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
@@ -147,7 +148,7 @@ export const useAuthStore = create<AuthState>()(
                 designation_title: data.user.user_metadata?.designation_title || 'Software Engineer',
                 employment_status: 'active',
                 joining_date: new Date().toISOString().split('T')[0],
-                avatar_url: '/favicon (1).ico',
+                avatar_url: appIcon,
                 work_location: 'Headquarters',
                 created_at: data.user.created_at || new Date().toISOString(),
                 updated_at: new Date().toISOString(),

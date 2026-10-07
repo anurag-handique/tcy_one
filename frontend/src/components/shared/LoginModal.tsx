@@ -3,6 +3,8 @@ import { Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
 import { toast } from 'sonner';
+import logoBlack from '@/assets/logo_black_without_bg.png';
+import appIcon from '@/assets/app-icon.png';
 
 export function LoginModal() {
   const { isAuthenticated, login, isLoadingAuth } = useAuthStore();
@@ -59,7 +61,7 @@ export function LoginModal() {
         {/* Center: Authentic TCY Logo */}
         <div className="flex-1 flex items-center justify-center py-8">
           <img
-            src="/logo_black_without_bg.png"
+            src={logoBlack}
             alt="TCY Logo"
             className="w-48 sm:w-72 md:w-80 lg:w-[460px] max-w-[500px] object-contain pointer-events-none select-none"
           />
@@ -104,7 +106,7 @@ export function LoginModal() {
             <div className="relative flex items-center gap-3.5">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-none bg-[#f3f5f9] border border-slate-200 p-1.5 shadow-[inset_1px_1px_2px_#d1d5db,inset_-1px_-1px_2px_#ffffff]">
                 <img
-                  src="/favicon (1).ico"
+                  src={appIcon}
                   alt="TCY Logo"
                   className="h-full w-full object-contain"
                 />

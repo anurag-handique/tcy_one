@@ -16,6 +16,7 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
 import { cn } from '@/lib/utils';
+import appIcon from '@/assets/app-icon.png';
 
 export function Sidebar() {
   const { currentUser, activeRole } = useAuthStore();
@@ -67,7 +68,7 @@ export function Sidebar() {
       {/* Brand Icon Header */}
       <div className="flex h-12 items-center justify-center border-b theme-border">
         <img
-          src="/favicon (1).ico"
+          src={appIcon}
           alt="TCY Logo"
           className="h-6 w-6 object-contain"
         />

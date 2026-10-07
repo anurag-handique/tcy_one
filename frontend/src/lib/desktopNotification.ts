@@ -84,6 +84,20 @@ export async function sendNativeNotification(
     playNotificationSound();
   }
 
+  // 0. Highest Priority: Native Desktop Electron Bridge (Windows / macOS / Linux)
+  if (typeof window !== 'undefined' && (window as any).electronAPI?.sendNotification) {
+    try {
+      const sent = await (window as any).electronAPI.sendNotification({
+        title,
+        body: options?.body || 'TCY One Workspace Update',
+        subtitle: 'TCY One Enterprise',
+      });
+      if (sent) return true;
+    } catch (e) {
+      console.warn('[Notification] Electron native notification dispatch warning:', e);
+    }
+  }
+
   if (!('Notification' in window)) {
     console.warn('[Notification] Notifications not supported in this browser window.');
     return null;
