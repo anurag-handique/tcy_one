@@ -7,12 +7,12 @@ import { Upload } from '@aws-sdk/lib-storage';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const accountId = (process.env.R2_ACCOUNT_ID || 'f09e497c88cd9552e02dd2e779c8e513').trim();
-const accessKeyId = (process.env.R2_ACCESS_KEY_ID || 'a944479befcf40f67cb5147ca7e8c2c7').trim();
-const secretAccessKey = (process.env.R2_SECRET_ACCESS_KEY || 'deeca4b985bc0476c34b3d1243f677d08a1b7640b37eaa48192c97130852cc').trim();
-const bucketName = (process.env.R2_BUCKET_NAME || 'tcy-one-releases').trim();
-const publicDomain = (process.env.R2_PUBLIC_DOMAIN || 'https://pub-75125c1dec6e471f88324befd8b64812.r2.dev').trim().replace(/\/+$/, '');
-const prefix = (process.env.R2_PREFIX || 'releases').replace(/^\/+|\/+$/g, '');
+const accountId = 'f09e497c88cd9552e02dd2e779c8e513';
+const accessKeyId = '2a98e763bb06ee4675881cdf0caa1324';
+const secretAccessKey = 'caf91b26814c7c505a0447e02b4c127fbaf5c3509ef9686544ae04ba6b11d4e4';
+const bucketName = 'tcy-one-releases';
+const publicDomain = 'https://pub-75125c1dec6e471f88324befd8b64812.r2.dev';
+const prefix = 'releases';
 
 if (!accountId || !accessKeyId || !secretAccessKey) {
   console.log('⚠️ [R2 Upload] Cloudflare R2 credentials (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY) are not provided.');
