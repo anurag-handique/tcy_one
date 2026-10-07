@@ -44,6 +44,7 @@ export function createR2Client(config: R2Config): S3Client {
   return new S3Client({
     region: 'auto',
     endpoint: endpoint,
+    forcePathStyle: true,
     credentials: {
       accessKeyId: config.accessKeyId.trim(),
       secretAccessKey: config.secretAccessKey.trim(),
@@ -58,7 +59,10 @@ export async function testR2Connection(config: R2Config): Promise<{ success: boo
 
   try {
     const client = createR2Client(config);
-    const cmd = new HeadBucketCommand({ Bucket: config.bucketName.trim() });
+    const cmd = new ListObjectsV2Command({
+      Bucket: config.bucketName.trim(),
+      MaxKeys: 1,
+    });
     await client.send(cmd);
     return { success: true };
   } catch (err: any) {
