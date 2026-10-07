@@ -50,7 +50,7 @@ export const INITIAL_APP_RELEASES: AppRelease[] = [
     platform: 'windows',
     version: '1.0.2',
     file_name: 'TCY_One_Setup_1.0.2.exe',
-    file_size: 89400000,
+    file_size: 124110620,
     file_url: '#',
     storage_path: 'windows/TCY_One_Setup_1.0.2.exe',
     release_notes: 'TCY One v1.0.2 production release with native Windows Action Center notifications, offline punch resilience, and high-performance dark workspace UI.',
