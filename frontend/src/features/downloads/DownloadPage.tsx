@@ -67,13 +67,14 @@ export function DownloadPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#07090E] text-slate-100 flex flex-col items-center justify-between p-6 sm:p-10 lg:p-12 select-none overflow-y-auto">
-      
-      {/* Background Subtle Ambient Lighting */}
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
+    <div className="fixed inset-0 h-screen w-screen bg-[#07090E] text-slate-100 overflow-y-auto select-none z-50">
+      <div className="min-h-full w-full flex flex-col items-center justify-between p-6 sm:p-10 lg:p-12">
+        
+        {/* Background Subtle Ambient Lighting */}
+        <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
 
-      {/* Main Container */}
-      <div className="w-full max-w-3xl mx-auto space-y-10 relative z-10">
+        {/* Main Container */}
+        <div className="w-full max-w-3xl mx-auto space-y-10 relative z-10">
         
         {/* Top Header Bar */}
         <div className="flex items-center justify-between">
@@ -310,7 +311,7 @@ export function DownloadPage() {
         </div>
 
       </div>
-
     </div>
-  );
+  </div>
+);
 }
