@@ -34,6 +34,8 @@
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
     "shortcutName": "TCY One",
+    "uninstallDisplayName": "TCY One ${version}",
+    "deleteAppDataOnUninstall": true,
     "artifactName": "${productName} Setup ${version}.${ext}"
   },
   "mac": {
