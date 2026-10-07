@@ -4,6 +4,10 @@
   "version": "1.0.2",
   "description": "TCY One — Unified Enterprise Workspace & Operations Suite",
   "author": "The Code Yogi <info@thecodeyogi.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anurag-handique/tcy_one.git"
+  },
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",

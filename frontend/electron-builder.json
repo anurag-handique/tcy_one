@@ -1,6 +1,7 @@
 {
   "appId": "com.thecodeyogi.tcyone",
   "productName": "TCY One",
+  "publish": null,
   "directories": {
     "output": "release"
   },
