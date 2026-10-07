@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search,
   Bell,
@@ -21,6 +21,7 @@ import {
   Info,
   Coffee,
   Download,
+  Laptop,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -46,6 +47,7 @@ import { toast } from 'sonner';
 
 export function TopBar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { currentUser, logout } = useAuthStore();
   const { setCommandPaletteOpen, setPunchModalOpen } = useUIStore();
   const { isInstallable, installApp } = usePWAInstall();
@@ -235,6 +237,16 @@ export function TopBar() {
           )}
         </div>
 
+        {/* Download Desktop App Button */}
+        <button
+          onClick={() => navigate('/download')}
+          title="Download TCY One Desktop App (Windows / macOS)"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#141822] hover:bg-[#1c2230] text-slate-300 hover:text-white border border-[#272f42] hover:border-slate-600 text-[10px] font-mono transition-all shadow-sm"
+        >
+          <Laptop className="h-3 w-3 text-sky-400" />
+          <span className="hidden sm:inline">Desktop App</span>
+        </button>
+
         {/* Install Desktop PWA Quick Button */}
         {isInstallable && (
           <button
@@ -243,7 +255,7 @@ export function TopBar() {
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-600/15 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 text-[10px] font-semibold transition-all shadow-sm animate-pulse"
           >
             <Download className="h-3 w-3" />
-            <span className="hidden sm:inline">Install App</span>
+            <span className="hidden sm:inline">Install PWA</span>
           </button>
         )}
 

@@ -22,6 +22,8 @@ import {
   UserRole,
   ParticipantStatus,
   TaskActivity,
+  AppRelease,
+  DesktopPlatform,
 } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { sendNativeNotification } from '../lib/desktopNotification';
@@ -41,6 +43,31 @@ import {
   INITIAL_NOTIFICATIONS,
   INITIAL_HOLIDAYS,
 } from '../lib/mockData';
+
+export const INITIAL_APP_RELEASES: AppRelease[] = [
+  {
+    id: 'rel-win-1',
+    platform: 'windows',
+    version: '1.0.2',
+    file_name: 'TCY One Setup 1.0.2.exe',
+    file_size: 89400000,
+    file_url: '#',
+    storage_path: 'windows/TCY_One_Setup_1.0.2.exe',
+    release_notes: 'TCY One v1.0.2 production release with native Windows Action Center notifications, offline punch resilience, and high-performance dark workspace UI.',
+    uploaded_at: new Date().toISOString(),
+  },
+  {
+    id: 'rel-mac-1',
+    platform: 'macos',
+    version: '1.0.2',
+    file_name: 'TCY One 1.0.2.dmg',
+    file_size: 94200000,
+    file_url: '#',
+    storage_path: 'macos/TCY_One_1.0.2.dmg',
+    release_notes: 'TCY One v1.0.2 Apple Silicon (M1/M2/M3) & Intel universal build with dock badges and native menu integration.',
+    uploaded_at: new Date().toISOString(),
+  },
+];
 
 const DEFAULT_ATTENDANCE_POLICY: AttendancePolicy = {
   office_start_time: '09:30',
@@ -94,10 +121,23 @@ interface DataState {
   meetings: Meeting[];
   notifications: NotificationItem[];
   holidays: Holiday[];
+  appReleases: AppRelease[];
   isLoadingFromSupabase: boolean;
 
   // Supabase sync
   fetchSupabaseData: () => Promise<void>;
+
+  // Desktop App Releases
+  fetchAppReleases: () => Promise<void>;
+  uploadAppRelease: (payload: {
+    file: File;
+    platform: DesktopPlatform;
+    version: string;
+    releaseNotes?: string;
+    uploadedBy?: string;
+    onProgress?: (percent: number) => void;
+  }) => Promise<{ success: boolean; error?: string }>;
+  deleteAppRelease: (platform: DesktopPlatform) => Promise<{ success: boolean; error?: string }>;
 
   // Attendance Actions & Policy
   updateAttendancePolicy: (policy: Partial<AttendancePolicy>) => void;
@@ -199,6 +239,7 @@ export const useDataStore = create<DataState>()(
       meetings: INITIAL_MEETINGS,
       notifications: INITIAL_NOTIFICATIONS,
       holidays: INITIAL_HOLIDAYS,
+      appReleases: INITIAL_APP_RELEASES,
       isLoadingFromSupabase: false,
 
       // Fetch live data directly from Supabase tables without erasing offline/local punch state
@@ -221,6 +262,7 @@ export const useDataStore = create<DataState>()(
             { data: meetingParticipantsData },
             { data: notifsData },
             { data: holidaysData },
+            { data: releasesData },
           ] = await Promise.all([
             supabase.from('profiles').select('*'),
             supabase.from('departments').select('*'),
@@ -236,6 +278,7 @@ export const useDataStore = create<DataState>()(
             supabase.from('meeting_participants').select('*'),
             supabase.from('notifications').select('*').order('created_at', { ascending: false }),
             supabase.from('holidays').select('*').order('holiday_date', { ascending: true }),
+            supabase.from('app_releases').select('*').order('uploaded_at', { ascending: false }),
           ]);
 
           const currentAttendance = get().attendance || [];
@@ -318,6 +361,7 @@ export const useDataStore = create<DataState>()(
               meetings: enrichedMeetings,
               notifications: notifsData && notifsData.length > 0 ? notifsData : get().notifications,
               holidays: holidaysData && holidaysData.length > 0 ? holidaysData : get().holidays,
+              appReleases: releasesData && releasesData.length > 0 ? releasesData : get().appReleases,
               isLoadingFromSupabase: false,
             });
         } catch (err) {
@@ -2266,6 +2310,139 @@ export const useDataStore = create<DataState>()(
         }
       },
 
+      // Desktop App Release Management
+      fetchAppReleases: async () => {
+        if (!supabase || !isSupabaseConfigured) return;
+        try {
+          const { data, error } = await supabase
+            .from('app_releases')
+            .select('*')
+            .order('uploaded_at', { ascending: false });
+          if (!error && data) {
+            set({ appReleases: data });
+          }
+        } catch (e) {
+          console.warn('Failed to fetch app releases:', e);
+        }
+      },
+
+      uploadAppRelease: async ({ file, platform, version, releaseNotes, uploadedBy, onProgress }) => {
+        const cleanPlatform = platform;
+        const cleanVersion = version.trim() || '1.0.2';
+        const cleanFileName = file.name;
+        const fileSize = file.size;
+        const storagePath = `${cleanPlatform}/${Date.now()}_${cleanFileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+
+        // 1. Check existing release for the platform to delete old file
+        const existingRelease = get().appReleases.find((r) => r.platform === cleanPlatform);
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            // Delete old file from storage if present
+            if (existingRelease?.storage_path) {
+              await supabase.storage.from('app-releases').remove([existingRelease.storage_path]);
+            }
+
+            // Upload new file to Supabase storage bucket
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('app-releases')
+              .upload(storagePath, file, {
+                cacheControl: '3600',
+                upsert: true,
+              });
+
+            if (uploadError) {
+              console.error('Storage upload error:', uploadError);
+              return { success: false, error: uploadError.message };
+            }
+
+            // Get public URL
+            const { data: urlData } = supabase.storage.from('app-releases').getPublicUrl(storagePath);
+            const publicUrl = urlData.publicUrl;
+
+            // Upsert record in public.app_releases
+            const releaseRecord = {
+              platform: cleanPlatform,
+              version: cleanVersion,
+              file_name: cleanFileName,
+              file_size: fileSize,
+              file_url: publicUrl,
+              storage_path: storagePath,
+              release_notes: releaseNotes?.trim() || `TCY One ${cleanPlatform.toUpperCase()} Release v${cleanVersion}`,
+              uploaded_by: uploadedBy || null,
+              uploaded_at: new Date().toISOString(),
+            };
+
+            const { data: dbData, error: dbError } = await supabase
+              .from('app_releases')
+              .upsert(releaseRecord, { onConflict: 'platform' })
+              .select()
+              .single();
+
+            if (dbError) {
+              console.error('DB app_releases upsert error:', dbError);
+              return { success: false, error: dbError.message };
+            }
+
+            // Update local state
+            set((state) => ({
+              appReleases: [
+                ...state.appReleases.filter((r) => r.platform !== cleanPlatform),
+                dbData || { ...releaseRecord, id: 'rel-' + Date.now() },
+              ],
+            }));
+
+            return { success: true };
+          } catch (err: any) {
+            console.error('App release upload exception:', err);
+            return { success: false, error: err?.message || 'Upload failed' };
+          }
+        } else {
+          // Local fallback
+          const localRecord: AppRelease = {
+            id: 'rel-' + Date.now(),
+            platform: cleanPlatform,
+            version: cleanVersion,
+            file_name: cleanFileName,
+            file_size: fileSize,
+            file_url: URL.createObjectURL(file),
+            storage_path: storagePath,
+            release_notes: releaseNotes?.trim() || `TCY One ${cleanPlatform.toUpperCase()} Release v${cleanVersion}`,
+            uploaded_by: uploadedBy,
+            uploaded_at: new Date().toISOString(),
+          };
+
+          set((state) => ({
+            appReleases: [
+              ...state.appReleases.filter((r) => r.platform !== cleanPlatform),
+              localRecord,
+            ],
+          }));
+
+          return { success: true };
+        }
+      },
+
+      deleteAppRelease: async (platform: DesktopPlatform) => {
+        const existing = get().appReleases.find((r) => r.platform === platform);
+        if (existing && supabase && isSupabaseConfigured) {
+          try {
+            if (existing.storage_path) {
+              await supabase.storage.from('app-releases').remove([existing.storage_path]);
+            }
+            await supabase.from('app_releases').delete().eq('platform', platform);
+          } catch (err) {
+            console.warn('Delete app release warning:', err);
+          }
+        }
+
+        set((state) => ({
+          appReleases: state.appReleases.filter((r) => r.platform !== platform),
+        }));
+
+        return { success: true };
+      },
+
       resetToDefaultData: () => {
         set({
           profiles: INITIAL_PROFILES,
@@ -2282,6 +2459,7 @@ export const useDataStore = create<DataState>()(
           meetings: INITIAL_MEETINGS,
           notifications: INITIAL_NOTIFICATIONS,
           holidays: INITIAL_HOLIDAYS,
+          appReleases: INITIAL_APP_RELEASES,
         });
       },
     }),
@@ -2290,3 +2468,4 @@ export const useDataStore = create<DataState>()(
     }
   )
 );
+

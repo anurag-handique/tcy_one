@@ -27,12 +27,20 @@ import {
   Bell,
   Volume2,
   Download,
+  UploadCloud,
+  Apple,
+  HardDrive,
+  Trash2,
+  ExternalLink,
+  FileCode,
+  Laptop,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useUIStore, DensityMode, ThemePreset, AccentColor, FontFamily } from '@/stores/uiStore';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { formatDate, isSaturdayOffDay, cn } from '@/lib/utils';
+import { DesktopPlatform } from '@/types';
 import {
   getDesktopNotificationPermission,
   requestDesktopNotificationPermission,
@@ -54,6 +62,7 @@ import { toast } from 'sonner';
 type SettingsTab =
   | 'attendance'
   | 'notifications'
+  | 'releases'
   | 'saturdays'
   | 'density'
   | 'appearance'
@@ -72,7 +81,23 @@ export function SettingsPage() {
     departments,
     designations,
     profiles,
+    appReleases,
+    uploadAppRelease,
+    deleteAppRelease,
+    fetchAppReleases,
   } = useDataStore();
+
+  // Desktop Release Upload State
+  const [uploadPlatform, setUploadPlatform] = React.useState<DesktopPlatform>('windows');
+  const [uploadVersion, setUploadVersion] = React.useState('1.0.2');
+  const [uploadFile, setUploadFile] = React.useState<File | null>(null);
+  const [uploadNotes, setUploadNotes] = React.useState('');
+  const [isUploadingRelease, setIsUploadingRelease] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    fetchAppReleases();
+  }, [fetchAppReleases]);
   const {
     densityMode,
     setDensityMode,
@@ -221,6 +246,54 @@ export function SettingsPage() {
     }
   };
 
+  const handleUploadReleaseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadFile) {
+      toast.error('Please select an installer binary (.exe, .dmg, or .zip) to upload.');
+      return;
+    }
+    if (!uploadVersion.trim()) {
+      toast.error('Please specify a version number (e.g. 1.0.2).');
+      return;
+    }
+
+    try {
+      setIsUploadingRelease(true);
+      toast.info(`Uploading ${uploadFile.name} to cloud storage...`);
+
+      const result = await uploadAppRelease({
+        file: uploadFile,
+        platform: uploadPlatform,
+        version: uploadVersion.trim(),
+        releaseNotes: uploadNotes.trim(),
+        uploadedBy: currentUser?.id,
+      });
+
+      if (result.success) {
+        toast.success(`Successfully published ${uploadPlatform.toUpperCase()} installer v${uploadVersion.trim()}! Old file was replaced.`);
+        setUploadFile(null);
+        setUploadNotes('');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      } else {
+        toast.error(result.error || 'Failed to upload installer binary.');
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Error during upload');
+    } finally {
+      setIsUploadingRelease(false);
+    }
+  };
+
+  const handleDeleteRelease = async (platform: DesktopPlatform) => {
+    if (!confirm(`Are you sure you want to remove the ${platform.toUpperCase()} installer release?`)) return;
+    try {
+      await deleteAppRelease(platform);
+      toast.success(`Removed ${platform.toUpperCase()} installer release.`);
+    } catch (e) {
+      toast.error('Failed to remove release');
+    }
+  };
+
   const activeOverridesCount = attendancePolicy.working_saturdays_override?.length || 0;
 
   const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
@@ -285,6 +358,20 @@ export function SettingsPage() {
         >
           <Bell className="h-3 w-3 text-blue-400" />
           <span>Realtime & OS Alerts</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('releases')}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all whitespace-nowrap border',
+            activeTab === 'releases'
+              ? 'tab-active'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
+          )}
+        >
+          <Laptop className="h-3 w-3 text-sky-400" />
+          <span>Desktop Apps & Installers</span>
         </button>
 
         <button
@@ -1428,6 +1515,261 @@ export function SettingsPage() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* TAB: DESKTOP APPS & CLOUD INSTALLERS */}
+      {/* ===================================================================== */}
+      {activeTab === 'releases' && (
+        <div className="space-y-4">
+          
+          {/* Header Card */}
+          <div className="border border-[#1b2230] bg-[#0c1018] p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#18202d] pb-3">
+              <div className="flex items-center gap-2">
+                <Laptop className="h-4 w-4 text-sky-400" />
+                <div>
+                  <span className="text-xs font-bold font-mono uppercase text-white block">
+                    Desktop Application Packages & Cloud Releases
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Manage and distribute official Windows (.exe) and macOS (.dmg / .zip) desktop installers.
+                  </span>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                onClick={() => navigate('/download')}
+                className="h-7 text-xs bg-blue-600 hover:bg-blue-500 text-white font-mono px-3 gap-1.5 rounded-none shrink-0"
+              >
+                <span>View Download Portal</span>
+                <ExternalLink className="h-3 w-3" />
+              </Button>
+            </div>
+
+            {/* Notice Banner */}
+            <div className="flex items-start gap-2.5 p-3 bg-blue-950/20 border border-blue-900/40 text-[11px] font-mono text-blue-300">
+              <Sparkles className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-white">Automatic Storage Replacement:</strong> When a Super Admin uploads a newer installer for Windows or macOS, any previous release binary for that platform is automatically purged from Supabase Storage (<code className="text-blue-200">app-releases</code> bucket) to preserve storage limits.
+              </div>
+            </div>
+          </div>
+
+          {/* Super Admin Upload Form */}
+          {isSuperAdminOrAdmin && (
+            <div className="border border-[#1b2230] bg-[#0c1018] p-4 space-y-4">
+              <div className="flex items-center justify-between border-b border-[#18202d] pb-2">
+                <div className="flex items-center gap-2">
+                  <UploadCloud className="h-3.5 w-3.5 text-blue-400" />
+                  <span className="text-xs font-bold font-mono uppercase text-white">
+                    Publish New Desktop Installer
+                  </span>
+                </div>
+                <span className="text-[9px] font-mono uppercase px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  Super Admin Exclusive
+                </span>
+              </div>
+
+              <form onSubmit={handleUploadReleaseSubmit} className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  
+                  {/* Platform Picker */}
+                  <div>
+                    <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                      Target Operating System
+                    </label>
+                    <select
+                      value={uploadPlatform}
+                      onChange={(e) => setUploadPlatform(e.target.value as DesktopPlatform)}
+                      className="h-8 w-full rounded-none border border-[#1b202c] bg-[#080b11] px-2.5 text-xs text-white font-mono"
+                    >
+                      <option value="windows">Windows (.exe Setup & Portable)</option>
+                      <option value="macos">macOS (.dmg & .zip Universal)</option>
+                      <option value="linux">Linux (.AppImage / .deb)</option>
+                    </select>
+                  </div>
+
+                  {/* Version Number */}
+                  <div>
+                    <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                      Release Version Tag
+                    </label>
+                    <Input
+                      type="text"
+                      value={uploadVersion}
+                      onChange={(e) => setUploadVersion(e.target.value)}
+                      placeholder="e.g. 1.0.2"
+                      className="h-8 bg-[#080b11] border-[#1b202c] text-xs font-mono rounded-none"
+                      required
+                    />
+                  </div>
+
+                </div>
+
+                {/* File Drop / Select */}
+                <div>
+                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                    Installer Binary File (.exe / .dmg / .zip)
+                  </label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".exe,.dmg,.zip,.appimage,.deb"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setUploadFile(e.target.files[0]);
+                      }
+                    }}
+                    className="block w-full text-xs font-mono text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:border-0 file:text-xs file:font-mono file:bg-blue-600 file:text-white hover:file:bg-blue-500 file:cursor-pointer cursor-pointer bg-[#080b11] border border-[#1b202c] p-1.5"
+                    required
+                  />
+                  {uploadFile && (
+                    <p className="text-[10px] font-mono text-emerald-400 mt-1">
+                      Selected: {uploadFile.name} ({(uploadFile.size / (1024 * 1024)).toFixed(1)} MB)
+                    </p>
+                  )}
+                </div>
+
+                {/* Release Notes */}
+                <div>
+                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                    Changelog / Release Notes
+                  </label>
+                  <textarea
+                    value={uploadNotes}
+                    onChange={(e) => setUploadNotes(e.target.value)}
+                    rows={2}
+                    placeholder="e.g. Added background push notification support, faster boot times, and fixed attendance regularization."
+                    className="w-full bg-[#080b11] border border-[#1b202c] text-xs font-mono p-2 text-white rounded-none focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Submit Action */}
+                <div className="flex items-center justify-between pt-2 border-t border-[#18202d]">
+                  <span className="text-[10px] font-mono text-slate-500">
+                    Max file size: 500 MB per release
+                  </span>
+
+                  <Button
+                    type="submit"
+                    disabled={isUploadingRelease || !uploadFile}
+                    className="h-8 bg-blue-600 hover:bg-blue-500 text-white font-mono text-xs gap-1.5 px-4 rounded-none disabled:opacity-50"
+                  >
+                    {isUploadingRelease ? (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        <span>Uploading to Cloud...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="h-3.5 w-3.5" />
+                        <span>Publish {uploadPlatform.toUpperCase()} Release</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Active Cloud Releases List */}
+          <div className="border border-[#1b2230] bg-[#0c1018] p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#18202d] pb-2">
+              <div className="flex items-center gap-2">
+                <HardDrive className="h-3.5 w-3.5 text-emerald-400" />
+                <span className="text-xs font-bold font-mono uppercase text-white">
+                  Active Cloud Distributed Installers ({appReleases.length})
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchAppReleases()}
+                className="h-6 text-[10px] font-mono border-slate-700 px-2 text-slate-300"
+              >
+                <RefreshCw className="h-2.5 w-2.5 mr-1" />
+                <span>Sync</span>
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              {appReleases.map((release) => (
+                <div
+                  key={release.id || release.platform}
+                  className="p-3.5 bg-[#080b11] border border-[#171e2c] space-y-3 relative group"
+                >
+                  <div className="flex items-center justify-between border-b border-[#141925] pb-2">
+                    <div className="flex items-center gap-2">
+                      {release.platform === 'macos' ? (
+                        <Apple className="h-4 w-4 text-slate-200" />
+                      ) : (
+                        <Monitor className="h-4 w-4 text-blue-400" />
+                      )}
+                      <span className="text-xs font-bold font-mono text-white uppercase">
+                        {release.platform === 'macos' ? 'macOS Installer' : 'Windows Setup'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-mono font-bold">
+                        v{release.version}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 text-xs font-mono">
+                    <div className="text-slate-300 font-medium truncate flex items-center gap-1">
+                      <FileCode className="h-3 w-3 text-slate-500 shrink-0" />
+                      <span className="truncate">{release.file_name}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                      <span>Size: {(release.file_size / (1024 * 1024)).toFixed(1)} MB</span>
+                      <span>{formatDate(release.uploaded_at)}</span>
+                    </div>
+                    {release.release_notes && (
+                      <p className="text-[10px] text-slate-400 pt-1 line-clamp-2">
+                        {release.release_notes}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-[#141925] flex items-center justify-between">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (release.file_url && release.file_url !== '#') {
+                          window.open(release.file_url, '_blank');
+                        } else {
+                          toast.info(`Installer v${release.version} can be compiled locally via build scripts.`);
+                        }
+                      }}
+                      className="h-6 text-[10px] font-mono border-slate-700 hover:bg-blue-600 hover:text-white px-2.5"
+                    >
+                      <Download className="h-3 w-3 mr-1" />
+                      <span>Download</span>
+                    </Button>
+
+                    {isSuperAdminOrAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteRelease(release.platform)}
+                        className="h-6 text-[10px] font-mono text-rose-400 hover:text-rose-200 hover:bg-rose-950/40 px-2"
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        <span>Delete</span>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       )}
 

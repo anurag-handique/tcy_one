@@ -307,3 +307,18 @@ export interface AuditLog {
   ip_address?: string;
   created_at: string;
 }
+
+export type DesktopPlatform = 'windows' | 'macos' | 'linux';
+
+export interface AppRelease {
+  id: string;
+  platform: DesktopPlatform;
+  version: string;
+  file_name: string;
+  file_size: number;
+  file_url: string;
+  storage_path: string;
+  release_notes?: string;
+  uploaded_by?: string;
+  uploaded_at: string;
+}
