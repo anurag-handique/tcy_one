@@ -34,12 +34,28 @@ import {
   ExternalLink,
   FileCode,
   Laptop,
+  Copy,
+  Eye,
+  EyeOff,
+  Globe,
+  Server,
+  Check,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useUIStore, DensityMode, ThemePreset, AccentColor, FontFamily } from '@/stores/uiStore';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { AppleLogo, WindowsLogo } from '@/components/icons/PlatformIcons';
+import {
+  R2Config,
+  R2ObjectItem,
+  getStoredR2Config,
+  saveR2Config,
+  testR2Connection,
+  uploadToR2,
+  listR2Objects,
+  deleteFromR2,
+} from '@/lib/cloudflareR2';
 import { formatDate, isSaturdayOffDay, cn } from '@/lib/utils';
 import { DesktopPlatform } from '@/types';
 import {
@@ -90,18 +106,42 @@ export function SettingsPage() {
   } = useDataStore();
 
   // Desktop Release Upload State
-  const [uploadMode, setUploadMode] = React.useState<'file' | 'url'>('url');
+  const [uploadMode, setUploadMode] = React.useState<'r2_direct' | 'url' | 'file'>('r2_direct');
   const [uploadPlatform, setUploadPlatform] = React.useState<DesktopPlatform>('windows');
   const [uploadVersion, setUploadVersion] = React.useState('1.0.2');
   const [uploadFile, setUploadFile] = React.useState<File | null>(null);
   const [uploadDirectUrl, setUploadDirectUrl] = React.useState('');
   const [uploadNotes, setUploadNotes] = React.useState('');
   const [isUploadingRelease, setIsUploadingRelease] = React.useState(false);
+  const [uploadProgress, setUploadProgress] = React.useState<{ loaded: number; total: number; percentage: number } | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Cloudflare R2 Configuration & State
+  const [r2Config, setR2Config] = React.useState<R2Config>(getStoredR2Config());
+  const [showR2Config, setShowR2Config] = React.useState(!getStoredR2Config().accountId);
+  const [showSecretKey, setShowSecretKey] = React.useState(false);
+  const [isTestingR2, setIsTestingR2] = React.useState(false);
+  const [r2Connected, setR2Connected] = React.useState(false);
+  const [r2Objects, setR2Objects] = React.useState<R2ObjectItem[]>([]);
+  const [isLoadingR2Objects, setIsLoadingR2Objects] = React.useState(false);
+  const [copiedKey, setCopiedKey] = React.useState<string | null>(null);
+
+  const fetchR2ObjectsList = React.useCallback(async () => {
+    if (!r2Config.accountId || !r2Config.accessKeyId || !r2Config.secretAccessKey) return;
+    setIsLoadingR2Objects(true);
+    const result = await listR2Objects(r2Config);
+    if (result.success && result.objects) {
+      setR2Objects(result.objects);
+    }
+    setIsLoadingR2Objects(false);
+  }, [r2Config]);
 
   React.useEffect(() => {
     fetchAppReleases();
-  }, [fetchAppReleases]);
+    if (r2Config.accountId && r2Config.accessKeyId && r2Config.secretAccessKey) {
+      fetchR2ObjectsList();
+    }
+  }, [fetchAppReleases, fetchR2ObjectsList, r2Config.accountId, r2Config.accessKeyId, r2Config.secretAccessKey]);
   const {
     densityMode,
     setDensityMode,
@@ -250,6 +290,68 @@ export function SettingsPage() {
     }
   };
 
+  const handleTestAndSaveR2 = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsTestingR2(true);
+    const result = await testR2Connection(r2Config);
+    setIsTestingR2(false);
+    if (result.success) {
+      saveR2Config(r2Config);
+      setR2Connected(true);
+      toast.success('Successfully connected to Cloudflare R2 bucket & saved credentials!');
+      fetchR2ObjectsList();
+    } else {
+      setR2Connected(false);
+      toast.error(result.error || 'Failed to connect to Cloudflare R2 bucket.');
+    }
+  };
+
+  const handleCopyR2Url = (url: string, key: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedKey(key);
+    toast.success('Copied download URL to clipboard!');
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const handleDeleteR2Object = async (key: string) => {
+    if (!confirm(`Are you sure you want to delete "${key}" from Cloudflare R2?`)) return;
+    try {
+      const result = await deleteFromR2(key, r2Config);
+      if (result.success) {
+        toast.success(`Deleted ${key} from Cloudflare R2`);
+        fetchR2ObjectsList();
+      } else {
+        toast.error(result.error || 'Failed to delete from R2');
+      }
+    } catch (e) {
+      toast.error('Delete error');
+    }
+  };
+
+  const handleSetR2ObjectAsActiveRelease = async (item: R2ObjectItem, platform: DesktopPlatform) => {
+    try {
+      const version = uploadVersion.trim() || '1.0.2';
+      const cleanFileName = platform === 'macos' ? `TCY_One_${version}.dmg` : `TCY_One_Setup_${version}.exe`;
+      const result = await registerAppReleaseUrl({
+        platform,
+        version,
+        fileName: cleanFileName,
+        fileUrl: item.url,
+        fileSize: item.size,
+        releaseNotes: `Cloudflare R2 deployment: ${item.key}`,
+        uploadedBy: currentUser?.id,
+      });
+
+      if (result.success) {
+        toast.success(`Published ${item.key} as active ${platform.toUpperCase()} release v${version}!`);
+      } else {
+        toast.error(result.error || 'Failed to link R2 object as active release.');
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to set release');
+    }
+  };
+
   const handleUploadReleaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadVersion.trim()) {
@@ -257,41 +359,69 @@ export function SettingsPage() {
       return;
     }
 
-    if (uploadMode === 'file') {
+    if (uploadMode === 'r2_direct') {
+      // Direct Cloudflare R2 Upload
       if (!uploadFile) {
         toast.error('Please select an installer binary (.exe, .dmg, or .zip) to upload.');
+        return;
+      }
+      if (!r2Config.accountId || !r2Config.accessKeyId || !r2Config.secretAccessKey || !r2Config.bucketName) {
+        toast.error('Please configure your Cloudflare R2 credentials first.');
+        setShowR2Config(true);
         return;
       }
 
       try {
         setIsUploadingRelease(true);
-        toast.info(`Uploading ${uploadFile.name} to cloud storage...`);
+        setUploadProgress({ loaded: 0, total: uploadFile.size, percentage: 0 });
+        toast.info(`Uploading ${uploadFile.name} (${(uploadFile.size / (1024 * 1024)).toFixed(1)} MB) to Cloudflare R2...`);
 
-        const result = await uploadAppRelease({
+        const cleanVersion = uploadVersion.trim();
+        const cleanFileName = uploadPlatform === 'macos' ? `TCY_One_${cleanVersion}.dmg` : `TCY_One_Setup_${cleanVersion}.exe`;
+        const r2Key = `${uploadPlatform}/${Date.now()}_${cleanFileName}`;
+
+        const r2Result = await uploadToR2({
           file: uploadFile,
+          key: r2Key,
+          config: r2Config,
+          onProgress: (p) => setUploadProgress(p),
+        });
+
+        if (!r2Result.success || !r2Result.url) {
+          toast.error(r2Result.error || 'Failed to upload to Cloudflare R2.');
+          return;
+        }
+
+        // Register in public.app_releases
+        const regResult = await registerAppReleaseUrl({
           platform: uploadPlatform,
-          version: uploadVersion.trim(),
-          releaseNotes: uploadNotes.trim(),
+          version: cleanVersion,
+          fileName: cleanFileName,
+          fileUrl: r2Result.url,
+          fileSize: uploadFile.size,
+          releaseNotes: uploadNotes.trim() || `Cloudflare R2 Release v${cleanVersion}`,
           uploadedBy: currentUser?.id,
         });
 
-        if (result.success) {
-          toast.success(`Successfully published ${uploadPlatform.toUpperCase()} installer v${uploadVersion.trim()}!`);
+        if (regResult.success) {
+          toast.success(`Successfully uploaded to Cloudflare R2 and published ${uploadPlatform.toUpperCase()} installer v${cleanVersion}!`);
           setUploadFile(null);
           setUploadNotes('');
           if (fileInputRef.current) fileInputRef.current.value = '';
+          fetchR2ObjectsList();
         } else {
-          toast.error(result.error || 'Failed to upload installer binary.');
+          toast.error(regResult.error || 'Uploaded to Cloudflare R2 but failed to register release metadata.');
         }
       } catch (err: any) {
-        toast.error(err?.message || 'Error during upload');
+        toast.error(err?.message || 'Error during R2 upload');
       } finally {
         setIsUploadingRelease(false);
+        setUploadProgress(null);
       }
-    } else {
+    } else if (uploadMode === 'url') {
       // URL Mode
       if (!uploadDirectUrl.trim()) {
-        toast.error('Please enter a valid direct download URL (e.g., GitHub Releases or CDN link).');
+        toast.error('Please enter a valid direct download URL (e.g. Cloudflare / CDN link).');
         return;
       }
 
@@ -315,6 +445,38 @@ export function SettingsPage() {
         }
       } catch (err: any) {
         toast.error(err?.message || 'Error registering URL');
+      } finally {
+        setIsUploadingRelease(false);
+      }
+    } else {
+      // Supabase Direct Upload (< 50MB)
+      if (!uploadFile) {
+        toast.error('Please select an installer binary (.exe, .dmg, or .zip) to upload.');
+        return;
+      }
+
+      try {
+        setIsUploadingRelease(true);
+        toast.info(`Uploading ${uploadFile.name} to Supabase storage...`);
+
+        const result = await uploadAppRelease({
+          file: uploadFile,
+          platform: uploadPlatform,
+          version: uploadVersion.trim(),
+          releaseNotes: uploadNotes.trim(),
+          uploadedBy: currentUser?.id,
+        });
+
+        if (result.success) {
+          toast.success(`Successfully published ${uploadPlatform.toUpperCase()} installer v${uploadVersion.trim()}!`);
+          setUploadFile(null);
+          setUploadNotes('');
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        } else {
+          toast.error(result.error || 'Failed to upload installer binary.');
+        }
+      } catch (err: any) {
+        toast.error(err?.message || 'Error during upload');
       } finally {
         setIsUploadingRelease(false);
       }
@@ -1587,14 +1749,156 @@ export function SettingsPage() {
             </div>
           </div>
 
-          {/* Super Admin Upload Form */}
+          {/* Super Admin Cloudflare R2 Configuration Panel */}
+          {isSuperAdminOrAdmin && (
+            <div className="border border-[#1b2230] bg-[#0c1018] p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-[#18202d] pb-2">
+                <div className="flex items-center gap-2">
+                  <Server className="h-3.5 w-3.5 text-amber-400" />
+                  <span className="text-xs font-bold font-mono uppercase text-white">
+                    Cloudflare R2 Bucket Connection
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      'text-[9px] font-mono px-2 py-0.5 border flex items-center gap-1',
+                      r2Connected || r2Config.accountId
+                        ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900/50'
+                        : 'bg-amber-950/40 text-amber-400 border-amber-900/50'
+                    )}
+                  >
+                    <span className={cn('w-1.5 h-1.5 rounded-full', r2Connected || r2Config.accountId ? 'bg-emerald-400' : 'bg-amber-400')} />
+                    <span>{r2Connected || r2Config.accountId ? 'R2 Configured' : 'Credentials Required'}</span>
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowR2Config(!showR2Config)}
+                    className="h-6 text-[10px] font-mono border-slate-700 px-2"
+                  >
+                    {showR2Config ? 'Hide Settings' : 'Configure R2'}
+                  </Button>
+                </div>
+              </div>
+
+              {showR2Config && (
+                <form onSubmit={handleTestAndSaveR2} className="space-y-3 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                        Cloudflare Account ID
+                      </label>
+                      <Input
+                        type="text"
+                        value={r2Config.accountId}
+                        onChange={(e) => setR2Config({ ...r2Config, accountId: e.target.value.trim() })}
+                        placeholder="e.g. 7c9a6f1e5d3..."
+                        className="h-8 bg-[#080b11] border-[#1b202c] text-xs font-mono rounded-none text-white"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                        R2 Bucket Name
+                      </label>
+                      <Input
+                        type="text"
+                        value={r2Config.bucketName}
+                        onChange={(e) => setR2Config({ ...r2Config, bucketName: e.target.value.trim() })}
+                        placeholder="e.g. tcy-releases"
+                        className="h-8 bg-[#080b11] border-[#1b202c] text-xs font-mono rounded-none text-white"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                        Access Key ID
+                      </label>
+                      <Input
+                        type="text"
+                        value={r2Config.accessKeyId}
+                        onChange={(e) => setR2Config({ ...r2Config, accessKeyId: e.target.value.trim() })}
+                        placeholder="e.g. 9b7c8e3..."
+                        className="h-8 bg-[#080b11] border-[#1b202c] text-xs font-mono rounded-none text-white"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                        Secret Access Key
+                      </label>
+                      <div className="relative">
+                        <Input
+                          type={showSecretKey ? 'text' : 'password'}
+                          value={r2Config.secretAccessKey}
+                          onChange={(e) => setR2Config({ ...r2Config, secretAccessKey: e.target.value.trim() })}
+                          placeholder="••••••••••••••••••••"
+                          className="h-8 bg-[#080b11] border-[#1b202c] text-xs font-mono rounded-none text-white pr-8"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSecretKey(!showSecretKey)}
+                          className="absolute right-2 top-2 text-slate-400 hover:text-white"
+                        >
+                          {showSecretKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                        Public Domain / CDN Base URL (Custom Domain or r2.dev)
+                      </label>
+                      <Input
+                        type="url"
+                        value={r2Config.publicDomain}
+                        onChange={(e) => setR2Config({ ...r2Config, publicDomain: e.target.value.trim() })}
+                        placeholder="https://pub-xxxx.r2.dev or https://download.thecodeyogi.com"
+                        className="h-8 bg-[#080b11] border-[#1b202c] text-xs font-mono rounded-none text-white"
+                      />
+                      <span className="text-[10px] font-mono text-slate-400">
+                        Base URL used to construct direct download links for clients.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#18202d]">
+                    <Button
+                      type="submit"
+                      disabled={isTestingR2}
+                      className="h-7 bg-amber-600 hover:bg-amber-500 text-white font-mono text-xs px-3 rounded-none"
+                    >
+                      {isTestingR2 ? (
+                        <>
+                          <RefreshCw className="h-3 w-3 animate-spin mr-1" />
+                          <span>Testing R2 Connection...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-3 w-3 mr-1" />
+                          <span>Test Connection & Save</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
+
+          {/* Super Admin Direct Upload & Publishing Form */}
           {isSuperAdminOrAdmin && (
             <div className="border border-[#1b2230] bg-[#0c1018] p-4 space-y-4">
               <div className="flex items-center justify-between border-b border-[#18202d] pb-2">
                 <div className="flex items-center gap-2">
                   <UploadCloud className="h-3.5 w-3.5 text-blue-400" />
                   <span className="text-xs font-bold font-mono uppercase text-white">
-                    Publish New Desktop Installer
+                    Publish New Desktop Release
                   </span>
                 </div>
                 <span className="text-[9px] font-mono uppercase px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20">
@@ -1606,6 +1910,18 @@ export function SettingsPage() {
               <div className="flex items-center gap-2 border-b border-[#18202d] pb-2 text-xs font-mono">
                 <button
                   type="button"
+                  onClick={() => setUploadMode('r2_direct')}
+                  className={cn(
+                    'px-3 py-1 text-xs font-mono transition-all',
+                    uploadMode === 'r2_direct'
+                      ? 'bg-blue-600 text-white font-bold'
+                      : 'bg-[#121620] text-slate-400 hover:text-white'
+                  )}
+                >
+                  ⚡ Direct Cloudflare R2 Upload
+                </button>
+                <button
+                  type="button"
                   onClick={() => setUploadMode('url')}
                   className={cn(
                     'px-3 py-1 text-xs font-mono transition-all',
@@ -1614,7 +1930,7 @@ export function SettingsPage() {
                       : 'bg-[#121620] text-slate-400 hover:text-white'
                   )}
                 >
-                  Cloudflare / R2 Direct Download URL (Recommended)
+                  🔗 Public Download URL
                 </button>
                 <button
                   type="button"
@@ -1626,7 +1942,7 @@ export function SettingsPage() {
                       : 'bg-[#121620] text-slate-400 hover:text-white'
                   )}
                 >
-                  Direct Supabase Upload (&lt; 50 MB)
+                  📂 Supabase Storage (&lt; 50 MB)
                 </button>
               </div>
 
@@ -1666,11 +1982,11 @@ export function SettingsPage() {
 
                 </div>
 
-                {/* Cloudflare URL Input OR File Drop */}
+                {/* Input depending on mode */}
                 {uploadMode === 'url' ? (
                   <div>
                     <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
-                      Cloudflare / R2 Public Download URL
+                      Cloudflare / CDN Public Download URL
                     </label>
                     <Input
                       type="url"
@@ -1681,7 +1997,7 @@ export function SettingsPage() {
                       required={uploadMode === 'url'}
                     />
                     <p className="text-[10px] font-mono text-emerald-400 mt-1">
-                      High-speed, zero-egress Cloudflare CDN distribution.
+                      High-speed Cloudflare distribution with zero bandwidth fees.
                     </p>
                   </div>
                 ) : (
@@ -1699,13 +2015,31 @@ export function SettingsPage() {
                         }
                       }}
                       className="block w-full text-xs font-mono text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:border-0 file:text-xs file:font-mono file:bg-blue-600 file:text-white hover:file:bg-blue-500 file:cursor-pointer cursor-pointer bg-[#080b11] border border-[#1b202c] p-1.5"
-                      required={uploadMode === 'file'}
+                      required
                     />
                     {uploadFile && (
                       <p className="text-[10px] font-mono text-emerald-400 mt-1">
                         Selected: {uploadFile.name} ({(uploadFile.size / (1024 * 1024)).toFixed(1)} MB)
                       </p>
                     )}
+                  </div>
+                )}
+
+                {/* Upload Progress Bar */}
+                {isUploadingRelease && uploadProgress && (
+                  <div className="space-y-1.5 p-3 bg-blue-950/20 border border-blue-900/40">
+                    <div className="flex items-center justify-between text-xs font-mono text-blue-300">
+                      <span>Streaming to Cloudflare R2...</span>
+                      <span>
+                        {(uploadProgress.loaded / (1024 * 1024)).toFixed(1)} MB / {(uploadProgress.total / (1024 * 1024)).toFixed(1)} MB ({uploadProgress.percentage}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-800 h-2 overflow-hidden">
+                      <div
+                        className="bg-blue-500 h-full transition-all duration-200"
+                        style={{ width: `${uploadProgress.percentage}%` }}
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -1726,28 +2060,131 @@ export function SettingsPage() {
                 {/* Submit Action */}
                 <div className="flex items-center justify-between pt-2 border-t border-[#18202d]">
                   <span className="text-[10px] font-mono text-slate-500">
-                    Max file size: 500 MB per release
+                    {uploadMode === 'r2_direct' ? 'Direct S3 chunked upload to Cloudflare R2' : 'Direct download registration'}
                   </span>
 
                   <Button
                     type="submit"
-                    disabled={isUploadingRelease || !uploadFile}
+                    disabled={isUploadingRelease || (uploadMode !== 'url' && !uploadFile)}
                     className="h-8 bg-blue-600 hover:bg-blue-500 text-white font-mono text-xs gap-1.5 px-4 rounded-none disabled:opacity-50"
                   >
                     {isUploadingRelease ? (
                       <>
                         <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                        <span>Uploading to Cloud...</span>
+                        <span>Uploading...</span>
                       </>
                     ) : (
                       <>
                         <UploadCloud className="h-3.5 w-3.5" />
-                        <span>Publish {uploadPlatform.toUpperCase()} Release</span>
+                        <span>
+                          {uploadMode === 'r2_direct' ? 'Upload to Cloudflare R2' : `Publish ${uploadPlatform.toUpperCase()} Release`}
+                        </span>
                       </>
                     )}
                   </Button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* Cloudflare R2 Object Explorer & URL Viewer */}
+          {isSuperAdminOrAdmin && (
+            <div className="border border-[#1b2230] bg-[#0c1018] p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-[#18202d] pb-2">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-3.5 w-3.5 text-sky-400" />
+                  <span className="text-xs font-bold font-mono uppercase text-white">
+                    Cloudflare R2 Bucket Explorer ({r2Objects.length} files)
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchR2ObjectsList()}
+                  disabled={isLoadingR2Objects || !r2Config.accountId}
+                  className="h-6 text-[10px] font-mono border-slate-700 px-2 text-slate-300"
+                >
+                  <RefreshCw className={cn('h-2.5 w-2.5 mr-1', isLoadingR2Objects && 'animate-spin')} />
+                  <span>Refresh Bucket</span>
+                </Button>
+              </div>
+
+              {r2Objects.length === 0 ? (
+                <div className="text-center py-6 text-xs font-mono text-slate-400 border border-dashed border-slate-800">
+                  {r2Config.accountId ? 'No installer packages found in this R2 bucket. Upload a release above!' : 'Configure your Cloudflare R2 credentials above to explore bucket files.'}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {r2Objects.map((item) => (
+                    <div
+                      key={item.key}
+                      className="p-3 bg-[#080b11] border border-[#171e2c] flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono text-xs"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="text-white font-medium truncate flex items-center gap-1.5">
+                          <FileCode className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                          <span className="truncate">{item.key}</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-[10px] text-slate-400">
+                          <span>Size: {(item.size / (1024 * 1024)).toFixed(1)} MB</span>
+                          {item.lastModified && <span>{formatDate(item.lastModified)}</span>}
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-400 hover:underline flex items-center gap-0.5 truncate max-w-xs"
+                          >
+                            <span>{item.url}</span>
+                            <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                          </a>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCopyR2Url(item.url, item.key)}
+                          className="h-7 text-[11px] font-mono border-slate-700 hover:bg-blue-600 hover:text-white"
+                        >
+                          {copiedKey === item.key ? (
+                            <>
+                              <Check className="h-3 w-3 mr-1 text-emerald-400" />
+                              <span>Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3 w-3 mr-1" />
+                              <span>Copy URL</span>
+                            </>
+                          )}
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const platform: DesktopPlatform = item.key.toLowerCase().includes('mac') || item.key.endsWith('.dmg') ? 'macos' : 'windows';
+                            handleSetR2ObjectAsActiveRelease(item, platform);
+                          }}
+                          className="h-7 text-[11px] font-mono border-emerald-900/60 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-600 hover:text-white"
+                        >
+                          <span>Set Active Release</span>
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteR2Object(item.key)}
+                          className="h-7 text-red-400 hover:bg-red-950/30 p-1.5"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
