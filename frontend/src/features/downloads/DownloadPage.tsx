@@ -98,12 +98,12 @@ export function DownloadPage() {
           <div className="flex justify-center">
             <div className="relative p-2.5 rounded-2xl bg-gradient-to-b from-[#161c2c] to-[#0d121c] border border-slate-700/60 shadow-[0_10px_30px_rgba(0,0,0,0.6),0_0_20px_rgba(59,130,246,0.2)]">
               <img
-                src="/icon.png"
+                src="/app-icon.png"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/favicon.ico';
+                  (e.target as HTMLImageElement).src = '/icon.png';
                 }}
-                alt="TCY ONE Favicon Icon"
-                className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl object-contain filter drop-shadow-md"
+                alt="TCY ONE Desktop App Icon"
+                className="h-16 w-16 sm:h-20 sm:w-20 rounded-xl object-contain filter drop-shadow-md"
               />
             </div>
           </div>
