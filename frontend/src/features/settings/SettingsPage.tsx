@@ -90,7 +90,7 @@ export function SettingsPage() {
   } = useDataStore();
 
   // Desktop Release Upload State
-  const [uploadMode, setUploadMode] = React.useState<'file' | 'url'>('file');
+  const [uploadMode, setUploadMode] = React.useState<'file' | 'url'>('url');
   const [uploadPlatform, setUploadPlatform] = React.useState<DesktopPlatform>('windows');
   const [uploadVersion, setUploadVersion] = React.useState('1.0.2');
   const [uploadFile, setUploadFile] = React.useState<File | null>(null);
@@ -1606,18 +1606,6 @@ export function SettingsPage() {
               <div className="flex items-center gap-2 border-b border-[#18202d] pb-2 text-xs font-mono">
                 <button
                   type="button"
-                  onClick={() => setUploadMode('file')}
-                  className={cn(
-                    'px-3 py-1 text-xs font-mono transition-all',
-                    uploadMode === 'file'
-                      ? 'bg-blue-600 text-white font-bold'
-                      : 'bg-[#121620] text-slate-400 hover:text-white'
-                  )}
-                >
-                  Direct File Upload (&lt; 50 MB)
-                </button>
-                <button
-                  type="button"
                   onClick={() => setUploadMode('url')}
                   className={cn(
                     'px-3 py-1 text-xs font-mono transition-all',
@@ -1626,7 +1614,19 @@ export function SettingsPage() {
                       : 'bg-[#121620] text-slate-400 hover:text-white'
                   )}
                 >
-                  External Download URL (GitHub / S3 / CDN)
+                  Cloudflare / R2 Direct Download URL (Recommended)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUploadMode('file')}
+                  className={cn(
+                    'px-3 py-1 text-xs font-mono transition-all',
+                    uploadMode === 'file'
+                      ? 'bg-blue-600 text-white font-bold'
+                      : 'bg-[#121620] text-slate-400 hover:text-white'
+                  )}
+                >
+                  Direct Supabase Upload (&lt; 50 MB)
                 </button>
               </div>
 
@@ -1666,8 +1666,25 @@ export function SettingsPage() {
 
                 </div>
 
-                {/* File Drop / Select OR URL Input */}
-                {uploadMode === 'file' ? (
+                {/* Cloudflare URL Input OR File Drop */}
+                {uploadMode === 'url' ? (
+                  <div>
+                    <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                      Cloudflare / R2 Public Download URL
+                    </label>
+                    <Input
+                      type="url"
+                      value={uploadDirectUrl}
+                      onChange={(e) => setUploadDirectUrl(e.target.value)}
+                      placeholder="https://pub-xxxx.r2.dev/TCY_One_Setup_1.0.2.exe or https://download.thecodeyogi.com/TCY_One_Setup_1.0.2.exe"
+                      className="h-8 bg-[#080b11] border-[#1b202c] text-xs font-mono rounded-none text-white"
+                      required={uploadMode === 'url'}
+                    />
+                    <p className="text-[10px] font-mono text-emerald-400 mt-1">
+                      High-speed, zero-egress Cloudflare CDN distribution.
+                    </p>
+                  </div>
+                ) : (
                   <div>
                     <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
                       Installer Binary File (.exe / .dmg / .zip)
@@ -1689,23 +1706,6 @@ export function SettingsPage() {
                         Selected: {uploadFile.name} ({(uploadFile.size / (1024 * 1024)).toFixed(1)} MB)
                       </p>
                     )}
-                  </div>
-                ) : (
-                  <div>
-                    <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
-                      Direct Download URL (e.g. GitHub Releases, AWS S3, Cloudflare R2, Google Drive)
-                    </label>
-                    <Input
-                      type="url"
-                      value={uploadDirectUrl}
-                      onChange={(e) => setUploadDirectUrl(e.target.value)}
-                      placeholder="https://github.com/anurag-handique/tcy_one/releases/download/v1.0.2/TCY_One_Setup_1.0.2.exe"
-                      className="h-8 bg-[#080b11] border-[#1b202c] text-xs font-mono rounded-none text-white"
-                      required={uploadMode === 'url'}
-                    />
-                    <p className="text-[10px] font-mono text-slate-400 mt-1">
-                      Recommended for packages &gt; 50 MB (like Electron .exe / .dmg).
-                    </p>
                   </div>
                 )}
 
