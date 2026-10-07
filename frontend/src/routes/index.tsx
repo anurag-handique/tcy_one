@@ -17,6 +17,11 @@ import { DownloadPage } from '@/features/downloads/DownloadPage';
 export function AppRoutes() {
   return (
     <Routes>
+      {/* Publicly Accessible Download Page - No Authentication Required */}
+      <Route path="/download" element={<DownloadPage />} />
+      <Route path="/downloads" element={<Navigate to="/download" replace />} />
+
+      {/* Authenticated Workspace Layout */}
       <Route path="/" element={<AppLayout />}>
         <Route index element={<MyDayPage />} />
         <Route path="tasks" element={<TasksPage />} />
@@ -30,8 +35,6 @@ export function AppRoutes() {
         <Route path="departments" element={<Navigate to="/organization" replace />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="download" element={<DownloadPage />} />
-        <Route path="downloads" element={<Navigate to="/download" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

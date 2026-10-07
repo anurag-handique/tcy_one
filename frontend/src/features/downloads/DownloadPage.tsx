@@ -14,11 +14,13 @@ import { useDataStore } from '@/stores/dataStore';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { AppRelease, DesktopPlatform } from '@/types';
 import { Button } from '@/components/ui/Button';
+import { useAuthStore } from '@/stores/authStore';
 import { toast } from 'sonner';
 import appIcon from '@/assets/app-icon.png';
 
 export function DownloadPage() {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuthStore();
   const { appReleases, fetchAppReleases } = useDataStore();
   const { isInstallable, installApp } = usePWAInstall();
 
@@ -44,33 +46,28 @@ export function DownloadPage() {
   const activeRelease = selectedOS === 'macos' ? macRelease : windowsRelease;
 
   const formatFileSize = (bytes?: number) => {
-    if (!bytes) return selectedOS === 'macos' ? '94.2 MB' : '89.4 MB';
+    if (!bytes) return selectedOS === 'macos' ? '238.6 MB' : '94.5 MB';
     const mb = bytes / (1024 * 1024);
     return `${mb.toFixed(1)} MB`;
   };
 
   const handleDownload = (platform: DesktopPlatform) => {
     const release = platform === 'macos' ? macRelease : windowsRelease;
-    const url = release?.file_url;
     const defaultFilename = platform === 'macos' ? 'TCY_One_1.0.2.dmg' : 'TCY_One_Setup_1.0.2.exe';
+    const defaultR2Url = `https://pub-75125c1dec6e471f88324befd8b64812.r2.dev/releases/${defaultFilename}`;
+    const targetUrl = release?.file_url && release.file_url !== '#' && release.file_url !== '' ? release.file_url : defaultR2Url;
 
-    if (url && url !== '#' && url !== '') {
-      toast.success(`Starting download for ${release?.file_name || defaultFilename}...`);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = release?.file_name || defaultFilename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
-      toast.info(
-        `Production package ${defaultFilename} is ready. Upload the compiled binary in Super Admin Settings > Desktop Releases.`
-      );
-    }
+    toast.success(`Starting download for ${release?.file_name || defaultFilename}...`);
+    const link = document.createElement('a');
+    link.href = targetUrl;
+    link.download = release?.file_name || defaultFilename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
-    <div className="min-h-full w-full bg-[#07090E] text-slate-100 flex flex-col items-center justify-between p-6 sm:p-10 lg:p-12 select-none overflow-y-auto">
+    <div className="min-h-screen w-full bg-[#07090E] text-slate-100 flex flex-col items-center justify-between p-6 sm:p-10 lg:p-12 select-none overflow-y-auto">
       
       {/* Background Subtle Ambient Lighting */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
@@ -82,10 +79,10 @@ export function DownloadPage() {
         <div className="flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 text-xs font-mono text-slate-400 hover:text-white transition-colors py-1.5 px-3 rounded-lg hover:bg-slate-800/60 border border-transparent hover:border-slate-700/60"
+            className="inline-flex items-center gap-2 text-xs font-mono text-slate-400 hover:text-white transition-colors py-1.5 px-3 rounded-lg hover:bg-slate-800/60 border border-slate-800/60"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            <span>Back to Dashboard</span>
+            <span>{isAuthenticated ? 'Back to Workspace' : 'Sign In to TCY One'}</span>
           </button>
         </div>
 

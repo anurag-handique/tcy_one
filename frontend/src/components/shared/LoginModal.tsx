@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Loader2, ArrowRight, Download } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
 import { toast } from 'sonner';
@@ -7,6 +8,7 @@ import logoBlack from '@/assets/logo_black_without_bg.png';
 import appIcon from '@/assets/app-icon.png';
 
 export function LoginModal() {
+  const navigate = useNavigate();
   const { isAuthenticated, login, isLoadingAuth } = useAuthStore();
   const { fetchSupabaseData } = useDataStore();
 
@@ -203,6 +205,17 @@ export function LoginModal() {
                   </>
                 )}
               </button>
+
+              <div className="pt-2 text-center border-t border-slate-200/60 mt-4">
+                <button
+                  type="button"
+                  onClick={() => navigate('/download')}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-500 hover:text-blue-600 transition-colors"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Download Desktop App (.dmg / .exe)</span>
+                </button>
+              </div>
             </form>
           </div>
         </div>
