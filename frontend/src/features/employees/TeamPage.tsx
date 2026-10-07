@@ -32,7 +32,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { toast } from 'sonner';
 
 export function TeamPage() {
-  const { profiles, departments, designations, createEmployeeAccount, addDepartment, updateProfileData, deleteProfile } = useDataStore();
+  const { profiles, departments, designations, createEmployeeAccount, addDepartment, addDesignation, updateProfileData, deleteProfile } = useDataStore();
   const { currentUser, activeRole } = useAuthStore();
 
   // Permission checks: Super Admin and Admin can create, edit & manage employees & departments
@@ -148,9 +148,16 @@ export function TeamPage() {
         ? editCustomDesignation.trim() || 'Software Engineer'
         : editDesignationTitle.trim() || 'Software Engineer';
 
-    const matchedDesig = designations.find(
+    let matchedDesig = designations.find(
       (d) => d.title.toLowerCase() === finalDesignationTitle.toLowerCase()
     );
+
+    if (!matchedDesig && finalDesignationTitle) {
+      const newDesig = await addDesignation(finalDesignationTitle, 'Mid', editDeptId || undefined);
+      if (newDesig) {
+        matchedDesig = newDesig;
+      }
+    }
 
     setSavingEdit(true);
     const formattedPhone = editPhoneDigits.trim() ? `+91 ${editPhoneDigits.trim()}` : undefined;

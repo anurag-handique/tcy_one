@@ -2103,13 +2103,62 @@ export const useDataStore = create<DataState>()(
       },
 
       updateProfileData: async (id, updates) => {
+        let desigId = updates.designation_id;
+        if (!desigId && updates.designation_title) {
+          const match = get().designations.find(
+            (d) => d.title.toLowerCase() === updates.designation_title!.trim().toLowerCase()
+          );
+          if (match) {
+            desigId = match.id;
+          }
+        }
+
+        const fullUpdates = {
+          ...updates,
+          ...(desigId ? { designation_id: desigId } : {}),
+        };
+
         set((state) => ({
-          profiles: state.profiles.map((p) => (p.id === id ? { ...p, ...updates, updated_at: new Date().toISOString() } : p)),
+          profiles: state.profiles.map((p) =>
+            p.id === id ? { ...p, ...fullUpdates, updated_at: new Date().toISOString() } : p
+          ),
         }));
 
         if (supabase && isSupabaseConfigured) {
           try {
-            await supabase.from('profiles').update(updates).eq('id', id);
+            // Strip out virtual client-only fields (designation_title, department, designation, manager)
+            const allowedCols = [
+              'email',
+              'full_name',
+              'avatar_url',
+              'phone',
+              'department_id',
+              'designation_id',
+              'manager_id',
+              'role',
+              'employment_status',
+              'joining_date',
+              'address',
+              'emergency_contact',
+              'work_location',
+              'updated_at',
+            ];
+
+            const dbPayload: Record<string, any> = {};
+            for (const col of allowedCols) {
+              if (col in fullUpdates && (fullUpdates as any)[col] !== undefined) {
+                dbPayload[col] = (fullUpdates as any)[col];
+              }
+            }
+            if (!dbPayload.updated_at) {
+              dbPayload.updated_at = new Date().toISOString();
+            }
+
+            const { error } = await supabase.from('profiles').update(dbPayload).eq('id', id);
+            if (error) {
+              console.error('Supabase update profile error:', error);
+              return false;
+            }
           } catch (err) {
             console.warn('Supabase update profile warning:', err);
             return false;

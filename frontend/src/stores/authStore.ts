@@ -193,7 +193,36 @@ export const useAuthStore = create<AuthState>()(
         set({ currentUser: updated });
 
         if (supabase && isSupabaseConfigured && currentUser.id) {
-          await supabase.from('profiles').update(updates).eq('id', currentUser.id);
+          try {
+            const allowedCols = [
+              'email',
+              'full_name',
+              'avatar_url',
+              'phone',
+              'department_id',
+              'designation_id',
+              'manager_id',
+              'role',
+              'employment_status',
+              'joining_date',
+              'address',
+              'emergency_contact',
+              'work_location',
+              'updated_at',
+            ];
+            const dbPayload: Record<string, any> = {};
+            for (const col of allowedCols) {
+              if (col in updates && (updates as any)[col] !== undefined) {
+                dbPayload[col] = (updates as any)[col];
+              }
+            }
+            if (!dbPayload.updated_at) {
+              dbPayload.updated_at = new Date().toISOString();
+            }
+            await supabase.from('profiles').update(dbPayload).eq('id', currentUser.id);
+          } catch (err) {
+            console.warn('Supabase auth updateProfile error:', err);
+          }
         }
       },
     }),
