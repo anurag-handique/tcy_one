@@ -284,10 +284,7 @@ export function SettingsPage() {
   };
 
   const handleResetData = () => {
-    if (window.confirm('Reset local state back to default TCY seed records?')) {
-      resetToDefaultData();
-      toast.success('Workspace reset to default seed records');
-    }
+    toast.error('Resetting workspace seed state is permanently disabled in production.');
   };
 
   const handleTestAndSaveR2 = async (e: React.FormEvent) => {
@@ -1706,11 +1703,12 @@ export function SettingsPage() {
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={handleResetData}
-                className="h-7 text-xs font-mono rounded-none"
+                disabled
+                className="h-7 text-xs font-mono rounded-none opacity-40 cursor-not-allowed"
+                title="Reset seed state is permanently disabled for all users in production"
               >
                 <RefreshCw className="h-3 w-3 mr-1" />
-                <span>Reset Seed State</span>
+                <span>Reset Seed State (Disabled)</span>
               </Button>
             </div>
           </div>
