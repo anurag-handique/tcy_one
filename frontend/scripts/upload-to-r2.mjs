@@ -7,11 +7,11 @@ import { Upload } from '@aws-sdk/lib-storage';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const accountId = (process.env.R2_ACCOUNT_ID || '').trim();
-const accessKeyId = (process.env.R2_ACCESS_KEY_ID || '').trim();
-const secretAccessKey = (process.env.R2_SECRET_ACCESS_KEY || '').trim();
+const accountId = (process.env.R2_ACCOUNT_ID || 'f09e497c88cd9552e02dd2e779c8e513').trim();
+const accessKeyId = (process.env.R2_ACCESS_KEY_ID || 'a944479befcf40f67cb5147ca7e8c2c7').trim();
+const secretAccessKey = (process.env.R2_SECRET_ACCESS_KEY || 'deeca4b985bc0476c34b3d1243f677d08a1b7640b37eaa48192c97130852cc').trim();
 const bucketName = (process.env.R2_BUCKET_NAME || 'tcy-releases').trim();
-const publicDomain = (process.env.R2_PUBLIC_DOMAIN || '').trim().replace(/\/+$/, '');
+const publicDomain = (process.env.R2_PUBLIC_DOMAIN || 'https://pub-75125c1dec6e471f88324befd8b64812.r2.dev').trim().replace(/\/+$/, '');
 const prefix = (process.env.R2_PREFIX || 'releases').replace(/^\/+|\/+$/g, '');
 
 if (!accountId || !accessKeyId || !secretAccessKey) {
