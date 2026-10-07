@@ -137,6 +137,15 @@ interface DataState {
     uploadedBy?: string;
     onProgress?: (percent: number) => void;
   }) => Promise<{ success: boolean; error?: string }>;
+  registerAppReleaseUrl: (payload: {
+    platform: DesktopPlatform;
+    version: string;
+    fileName: string;
+    fileUrl: string;
+    fileSize?: number;
+    releaseNotes?: string;
+    uploadedBy?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
   deleteAppRelease: (platform: DesktopPlatform) => Promise<{ success: boolean; error?: string }>;
 
   // Attendance Actions & Policy
@@ -2402,7 +2411,17 @@ export const useDataStore = create<DataState>()(
 
             if (uploadError) {
               console.error('Storage upload error:', uploadError);
-              return { success: false, error: uploadError.message };
+              const isSizeLimit =
+                (uploadError as any)?.statusCode === '413' ||
+                (uploadError as any)?.error?.includes?.('413') ||
+                uploadError.message?.toLowerCase().includes('size') ||
+                uploadError.message?.toLowerCase().includes('large');
+
+              const errMsg = isSizeLimit
+                ? 'File exceeds Supabase direct upload limit. Use the "External Download URL" tab to register GitHub Releases or S3 direct download link.'
+                : uploadError.message;
+
+              return { success: false, error: errMsg };
             }
 
             // Get public URL
@@ -2468,6 +2487,65 @@ export const useDataStore = create<DataState>()(
             ],
           }));
 
+          return { success: true };
+        }
+      },
+
+      registerAppReleaseUrl: async ({ platform, version, fileName, fileUrl, fileSize, releaseNotes, uploadedBy }) => {
+        const cleanPlatform = platform;
+        const cleanVersion = version.trim() || '1.0.2';
+        const cleanFileName = fileName.trim() || (cleanPlatform === 'macos' ? `TCY One ${cleanVersion}.dmg` : `TCY One Setup ${cleanVersion}.exe`);
+        const cleanUrl = fileUrl.trim();
+        const estimatedSize = fileSize || (cleanPlatform === 'macos' ? 94200000 : 89400000);
+
+        if (!cleanUrl) {
+          return { success: false, error: 'Direct download URL is required' };
+        }
+
+        const releaseRecord = {
+          platform: cleanPlatform,
+          version: cleanVersion,
+          file_name: cleanFileName,
+          file_size: estimatedSize,
+          file_url: cleanUrl,
+          storage_path: 'external_url',
+          release_notes: releaseNotes?.trim() || `TCY One ${cleanPlatform.toUpperCase()} Release v${cleanVersion}`,
+          uploaded_by: uploadedBy || null,
+          uploaded_at: new Date().toISOString(),
+        };
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            const { data: dbData, error: dbError } = await supabase
+              .from('app_releases')
+              .upsert(releaseRecord, { onConflict: 'platform' })
+              .select()
+              .single();
+
+            if (dbError) {
+              console.error('DB app_releases URL upsert error:', dbError);
+              return { success: false, error: dbError.message };
+            }
+
+            set((state) => ({
+              appReleases: [
+                ...state.appReleases.filter((r) => r.platform !== cleanPlatform),
+                dbData || { ...releaseRecord, id: 'rel-' + Date.now() },
+              ],
+            }));
+
+            return { success: true };
+          } catch (err: any) {
+            console.error('App release URL register exception:', err);
+            return { success: false, error: err?.message || 'Registration failed' };
+          }
+        } else {
+          set((state) => ({
+            appReleases: [
+              ...state.appReleases.filter((r) => r.platform !== cleanPlatform),
+              { ...releaseRecord, id: 'rel-' + Date.now() },
+            ],
+          }));
           return { success: true };
         }
       },

@@ -319,6 +319,6 @@ export interface AppRelease {
   file_url: string;
   storage_path: string;
   release_notes?: string;
-  uploaded_by?: string;
+  uploaded_by?: string | null;
   uploaded_at: string;
 }

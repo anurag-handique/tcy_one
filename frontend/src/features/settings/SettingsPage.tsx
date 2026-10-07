@@ -84,14 +84,17 @@ export function SettingsPage() {
     profiles,
     appReleases,
     uploadAppRelease,
+    registerAppReleaseUrl,
     deleteAppRelease,
     fetchAppReleases,
   } = useDataStore();
 
   // Desktop Release Upload State
+  const [uploadMode, setUploadMode] = React.useState<'file' | 'url'>('file');
   const [uploadPlatform, setUploadPlatform] = React.useState<DesktopPlatform>('windows');
   const [uploadVersion, setUploadVersion] = React.useState('1.0.2');
   const [uploadFile, setUploadFile] = React.useState<File | null>(null);
+  const [uploadDirectUrl, setUploadDirectUrl] = React.useState('');
   const [uploadNotes, setUploadNotes] = React.useState('');
   const [isUploadingRelease, setIsUploadingRelease] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -249,39 +252,72 @@ export function SettingsPage() {
 
   const handleUploadReleaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadFile) {
-      toast.error('Please select an installer binary (.exe, .dmg, or .zip) to upload.');
-      return;
-    }
     if (!uploadVersion.trim()) {
       toast.error('Please specify a version number (e.g. 1.0.2).');
       return;
     }
 
-    try {
-      setIsUploadingRelease(true);
-      toast.info(`Uploading ${uploadFile.name} to cloud storage...`);
-
-      const result = await uploadAppRelease({
-        file: uploadFile,
-        platform: uploadPlatform,
-        version: uploadVersion.trim(),
-        releaseNotes: uploadNotes.trim(),
-        uploadedBy: currentUser?.id,
-      });
-
-      if (result.success) {
-        toast.success(`Successfully published ${uploadPlatform.toUpperCase()} installer v${uploadVersion.trim()}! Old file was replaced.`);
-        setUploadFile(null);
-        setUploadNotes('');
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      } else {
-        toast.error(result.error || 'Failed to upload installer binary.');
+    if (uploadMode === 'file') {
+      if (!uploadFile) {
+        toast.error('Please select an installer binary (.exe, .dmg, or .zip) to upload.');
+        return;
       }
-    } catch (err: any) {
-      toast.error(err?.message || 'Error during upload');
-    } finally {
-      setIsUploadingRelease(false);
+
+      try {
+        setIsUploadingRelease(true);
+        toast.info(`Uploading ${uploadFile.name} to cloud storage...`);
+
+        const result = await uploadAppRelease({
+          file: uploadFile,
+          platform: uploadPlatform,
+          version: uploadVersion.trim(),
+          releaseNotes: uploadNotes.trim(),
+          uploadedBy: currentUser?.id,
+        });
+
+        if (result.success) {
+          toast.success(`Successfully published ${uploadPlatform.toUpperCase()} installer v${uploadVersion.trim()}!`);
+          setUploadFile(null);
+          setUploadNotes('');
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        } else {
+          toast.error(result.error || 'Failed to upload installer binary.');
+        }
+      } catch (err: any) {
+        toast.error(err?.message || 'Error during upload');
+      } finally {
+        setIsUploadingRelease(false);
+      }
+    } else {
+      // URL Mode
+      if (!uploadDirectUrl.trim()) {
+        toast.error('Please enter a valid direct download URL (e.g., GitHub Releases or CDN link).');
+        return;
+      }
+
+      try {
+        setIsUploadingRelease(true);
+        const result = await registerAppReleaseUrl({
+          platform: uploadPlatform,
+          version: uploadVersion.trim(),
+          fileName: uploadPlatform === 'macos' ? `TCY One ${uploadVersion.trim()}.dmg` : `TCY One Setup ${uploadVersion.trim()}.exe`,
+          fileUrl: uploadDirectUrl.trim(),
+          releaseNotes: uploadNotes.trim(),
+          uploadedBy: currentUser?.id,
+        });
+
+        if (result.success) {
+          toast.success(`Registered ${uploadPlatform.toUpperCase()} installer download URL v${uploadVersion.trim()}!`);
+          setUploadDirectUrl('');
+          setUploadNotes('');
+        } else {
+          toast.error(result.error || 'Failed to register download URL.');
+        }
+      } catch (err: any) {
+        toast.error(err?.message || 'Error registering URL');
+      } finally {
+        setIsUploadingRelease(false);
+      }
     }
   };
 
@@ -1566,6 +1602,34 @@ export function SettingsPage() {
                 </span>
               </div>
 
+              {/* Mode Switcher */}
+              <div className="flex items-center gap-2 border-b border-[#18202d] pb-2 text-xs font-mono">
+                <button
+                  type="button"
+                  onClick={() => setUploadMode('file')}
+                  className={cn(
+                    'px-3 py-1 text-xs font-mono transition-all',
+                    uploadMode === 'file'
+                      ? 'bg-blue-600 text-white font-bold'
+                      : 'bg-[#121620] text-slate-400 hover:text-white'
+                  )}
+                >
+                  Direct File Upload (&lt; 50 MB)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUploadMode('url')}
+                  className={cn(
+                    'px-3 py-1 text-xs font-mono transition-all',
+                    uploadMode === 'url'
+                      ? 'bg-blue-600 text-white font-bold'
+                      : 'bg-[#121620] text-slate-400 hover:text-white'
+                  )}
+                >
+                  External Download URL (GitHub / S3 / CDN)
+                </button>
+              </div>
+
               <form onSubmit={handleUploadReleaseSubmit} className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   
@@ -1602,29 +1666,48 @@ export function SettingsPage() {
 
                 </div>
 
-                {/* File Drop / Select */}
-                <div>
-                  <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
-                    Installer Binary File (.exe / .dmg / .zip)
-                  </label>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".exe,.dmg,.zip,.appimage,.deb"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setUploadFile(e.target.files[0]);
-                      }
-                    }}
-                    className="block w-full text-xs font-mono text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:border-0 file:text-xs file:font-mono file:bg-blue-600 file:text-white hover:file:bg-blue-500 file:cursor-pointer cursor-pointer bg-[#080b11] border border-[#1b202c] p-1.5"
-                    required
-                  />
-                  {uploadFile && (
-                    <p className="text-[10px] font-mono text-emerald-400 mt-1">
-                      Selected: {uploadFile.name} ({(uploadFile.size / (1024 * 1024)).toFixed(1)} MB)
+                {/* File Drop / Select OR URL Input */}
+                {uploadMode === 'file' ? (
+                  <div>
+                    <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                      Installer Binary File (.exe / .dmg / .zip)
+                    </label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".exe,.dmg,.zip,.appimage,.deb"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setUploadFile(e.target.files[0]);
+                        }
+                      }}
+                      className="block w-full text-xs font-mono text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:border-0 file:text-xs file:font-mono file:bg-blue-600 file:text-white hover:file:bg-blue-500 file:cursor-pointer cursor-pointer bg-[#080b11] border border-[#1b202c] p-1.5"
+                      required={uploadMode === 'file'}
+                    />
+                    {uploadFile && (
+                      <p className="text-[10px] font-mono text-emerald-400 mt-1">
+                        Selected: {uploadFile.name} ({(uploadFile.size / (1024 * 1024)).toFixed(1)} MB)
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
+                      Direct Download URL (e.g. GitHub Releases, AWS S3, Cloudflare R2, Google Drive)
+                    </label>
+                    <Input
+                      type="url"
+                      value={uploadDirectUrl}
+                      onChange={(e) => setUploadDirectUrl(e.target.value)}
+                      placeholder="https://github.com/anurag-handique/tcy_one/releases/download/v1.0.2/TCY_One_Setup_1.0.2.exe"
+                      className="h-8 bg-[#080b11] border-[#1b202c] text-xs font-mono rounded-none text-white"
+                      required={uploadMode === 'url'}
+                    />
+                    <p className="text-[10px] font-mono text-slate-400 mt-1">
+                      Recommended for packages &gt; 50 MB (like Electron .exe / .dmg).
                     </p>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Release Notes */}
                 <div>
