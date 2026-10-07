@@ -39,6 +39,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
 import { useUIStore, DensityMode, ThemePreset, AccentColor, FontFamily } from '@/stores/uiStore';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
+import { AppleLogo, WindowsLogo } from '@/components/icons/PlatformIcons';
 import { formatDate, isSaturdayOffDay, cn } from '@/lib/utils';
 import { DesktopPlatform } from '@/types';
 import {
@@ -1696,9 +1697,9 @@ export function SettingsPage() {
                   <div className="flex items-center justify-between border-b border-[#141925] pb-2">
                     <div className="flex items-center gap-2">
                       {release.platform === 'macos' ? (
-                        <Apple className="h-4 w-4 text-slate-200" />
+                        <AppleLogo className="h-4 w-4 text-slate-100 fill-current" />
                       ) : (
-                        <Monitor className="h-4 w-4 text-blue-400" />
+                        <WindowsLogo className="h-4 w-4 text-sky-400 fill-current" />
                       )}
                       <span className="text-xs font-bold font-mono text-white uppercase">
                         {release.platform === 'macos' ? 'macOS Installer' : 'Windows Setup'}

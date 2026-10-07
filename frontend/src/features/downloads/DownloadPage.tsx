@@ -1,20 +1,15 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Download,
-  Monitor,
-  Apple,
   ArrowLeft,
-  Check,
   ShieldCheck,
   Zap,
   Bell,
   HardDrive,
   Laptop,
   ArrowDownToLine,
-  Sparkles,
-  ExternalLink,
 } from 'lucide-react';
+import { WindowsLogo, AppleLogo } from '@/components/icons/PlatformIcons';
 import { useDataStore } from '@/stores/dataStore';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { AppRelease, DesktopPlatform } from '@/types';
@@ -86,7 +81,7 @@ export function DownloadPage() {
         <div className="flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 text-xs font-mono text-slate-400 hover:text-white transition-colors py-1 px-2.5 rounded-lg hover:bg-slate-800/60"
+            className="inline-flex items-center gap-2 text-xs font-mono text-slate-400 hover:text-white transition-colors py-1.5 px-3 rounded-lg hover:bg-slate-800/60 border border-transparent hover:border-slate-700/60"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             <span>Back to Dashboard</span>
@@ -101,11 +96,14 @@ export function DownloadPage() {
         {/* Minimal Hero Section with Logo */}
         <div className="text-center space-y-4 pt-2">
           <div className="flex justify-center">
-            <div className="relative p-3 rounded-2xl bg-gradient-to-b from-[#161c2c] to-[#0d121c] border border-slate-700/60 shadow-[0_10px_30px_rgba(0,0,0,0.6),0_0_20px_rgba(59,130,246,0.15)]">
+            <div className="relative p-2.5 rounded-2xl bg-gradient-to-b from-[#161c2c] to-[#0d121c] border border-slate-700/60 shadow-[0_10px_30px_rgba(0,0,0,0.6),0_0_20px_rgba(59,130,246,0.2)]">
               <img
-                src="/logo_black_without_bg.png"
-                alt="TCY ONE Logo"
-                className="h-14 w-14 sm:h-16 sm:w-16 object-contain filter drop-shadow-md"
+                src="/icon.png"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/favicon.ico';
+                }}
+                alt="TCY ONE Favicon Icon"
+                className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl object-contain filter drop-shadow-md"
               />
             </div>
           </div>
@@ -120,7 +118,7 @@ export function DownloadPage() {
           </div>
         </div>
 
-        {/* Platform Selector Switch */}
+        {/* Platform Selector Switch with Official OS Logos */}
         <div className="flex justify-center">
           <div className="p-1 rounded-xl bg-[#0e131d] border border-slate-800 flex items-center gap-1 font-mono text-xs">
             <button
@@ -131,7 +129,7 @@ export function DownloadPage() {
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
               }`}
             >
-              <Monitor className="h-4 w-4" />
+              <WindowsLogo className="h-3.5 w-3.5 fill-current" />
               <span>Windows</span>
             </button>
 
@@ -143,7 +141,7 @@ export function DownloadPage() {
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
               }`}
             >
-              <Apple className="h-4 w-4" />
+              <AppleLogo className="h-3.5 w-3.5 fill-current" />
               <span>macOS</span>
             </button>
           </div>
@@ -154,9 +152,14 @@ export function DownloadPage() {
           
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
             
-            {/* Left Info */}
+            {/* Left Info with Official OS Logo */}
             <div className="space-y-2 text-center sm:text-left">
-              <div className="flex items-center justify-center sm:justify-start gap-2">
+              <div className="flex items-center justify-center sm:justify-start gap-2.5">
+                {selectedOS === 'macos' ? (
+                  <AppleLogo className="h-5 w-5 text-slate-100 fill-current" />
+                ) : (
+                  <WindowsLogo className="h-5 w-5 text-sky-400 fill-current" />
+                )}
                 <span className="text-base font-bold text-white font-mono">
                   {selectedOS === 'macos' ? 'TCY One for macOS' : 'TCY One for Windows'}
                 </span>
@@ -183,16 +186,21 @@ export function DownloadPage() {
               </div>
             </div>
 
-            {/* Right CTA Button */}
+            {/* Right CTA Button with Official OS Logo */}
             <Button
               onClick={() => handleDownload(selectedOS)}
               size="lg"
               className="h-12 px-7 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-mono font-bold text-sm shadow-[0_0_25px_rgba(37,99,235,0.4)] flex items-center gap-2.5 transition-all hover:scale-105 active:scale-95 shrink-0"
             >
-              <ArrowDownToLine className="h-4 w-4" />
+              {selectedOS === 'macos' ? (
+                <AppleLogo className="h-4 w-4 fill-current" />
+              ) : (
+                <WindowsLogo className="h-4 w-4 fill-current" />
+              )}
               <span>
                 Download for {selectedOS === 'macos' ? 'macOS' : 'Windows'}
               </span>
+              <ArrowDownToLine className="h-4 w-4 opacity-75 ml-0.5" />
             </Button>
 
           </div>
@@ -205,8 +213,13 @@ export function DownloadPage() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => handleDownload(selectedOS === 'macos' ? 'windows' : 'macos')}
-                className="hover:text-blue-400 transition-colors flex items-center gap-1"
+                className="hover:text-blue-400 transition-colors flex items-center gap-1.5"
               >
+                {selectedOS === 'macos' ? (
+                  <WindowsLogo className="h-3 w-3 fill-current text-sky-400" />
+                ) : (
+                  <AppleLogo className="h-3 w-3 fill-current text-slate-300" />
+                )}
                 <span>Download for {selectedOS === 'macos' ? 'Windows (.exe)' : 'macOS (.dmg)'}</span>
               </button>
 
@@ -220,7 +233,7 @@ export function DownloadPage() {
                     toast.info('PWA is installable via browser address bar or already active.');
                   }
                 }}
-                className="hover:text-emerald-400 transition-colors flex items-center gap-1"
+                className="hover:text-emerald-400 transition-colors flex items-center gap-1.5"
               >
                 <Laptop className="h-3.5 w-3.5" />
                 <span>Web PWA</span>
