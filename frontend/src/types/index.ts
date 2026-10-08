@@ -83,6 +83,10 @@ export interface AttendancePolicy {
   strict_enforcement: boolean; // if true, punches after max_punch_in marked as absent
   saturday_off_rule: '3rd_4th' | '2nd_4th' | 'all' | 'none'; // generally 3rd and 4th Saturdays are off
   working_saturdays_override: string[]; // array of 'YYYY-MM-DD' dates enabled for urgent work
+  enable_location_tracking?: boolean; // toggle GPS telemetry service
+  require_punch_in_location?: boolean; // whether location capture is mandatory on clock in (login)
+  require_punch_out_location?: boolean; // whether location capture is mandatory on clock out (logout)
+  allow_manual_location_override?: boolean; // allow fallback if GPS is disabled or unavailable
 }
 
 export interface AttendanceCorrection {

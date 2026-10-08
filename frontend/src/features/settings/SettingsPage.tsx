@@ -40,6 +40,7 @@ import {
   Globe,
   Server,
   Check,
+  MapPin,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useDataStore } from '@/stores/dataStore';
@@ -178,6 +179,10 @@ export function SettingsPage() {
   const [allowOvertime, setAllowOvertime] = React.useState(attendancePolicy.allow_overtime ?? true);
   const [strictEnforcement, setStrictEnforcement] = React.useState(attendancePolicy.strict_enforcement ?? false);
   const [saturdayOffRule, setSaturdayOffRule] = React.useState<any>(attendancePolicy.saturday_off_rule || '3rd_4th');
+  const [enableLocationTracking, setEnableLocationTracking] = React.useState(attendancePolicy.enable_location_tracking ?? true);
+  const [requirePunchInLocation, setRequirePunchInLocation] = React.useState(attendancePolicy.require_punch_in_location ?? false);
+  const [requirePunchOutLocation, setRequirePunchOutLocation] = React.useState(attendancePolicy.require_punch_out_location ?? false);
+  const [allowManualLocationOverride, setAllowManualLocationOverride] = React.useState(attendancePolicy.allow_manual_location_override ?? true);
 
   React.useEffect(() => {
     setOfficeStartTime(attendancePolicy.office_start_time || '09:30');
@@ -188,6 +193,10 @@ export function SettingsPage() {
     setAllowOvertime(attendancePolicy.allow_overtime ?? true);
     setStrictEnforcement(attendancePolicy.strict_enforcement ?? false);
     setSaturdayOffRule(attendancePolicy.saturday_off_rule || '3rd_4th');
+    setEnableLocationTracking(attendancePolicy.enable_location_tracking ?? true);
+    setRequirePunchInLocation(attendancePolicy.require_punch_in_location ?? false);
+    setRequirePunchOutLocation(attendancePolicy.require_punch_out_location ?? false);
+    setAllowManualLocationOverride(attendancePolicy.allow_manual_location_override ?? true);
   }, [attendancePolicy]);
 
   // PWA & Web Push State
@@ -247,6 +256,10 @@ export function SettingsPage() {
       allow_overtime: allowOvertime,
       strict_enforcement: strictEnforcement,
       saturday_off_rule: saturdayOffRule,
+      enable_location_tracking: enableLocationTracking,
+      require_punch_in_location: requirePunchInLocation,
+      require_punch_out_location: requirePunchOutLocation,
+      allow_manual_location_override: allowManualLocationOverride,
     });
     toast.success('Attendance policies saved');
   };
@@ -815,6 +828,109 @@ export function SettingsPage() {
                 >
                   {strictEnforcement ? 'STRICT (ABSENT)' : 'HALF-DAY'}
                 </button>
+              </div>
+            </div>
+
+            {/* Location & Geolocation Tracking Rules */}
+            <div className="p-3 bg-[#080b11] border border-[#171e2c] space-y-3">
+              <div className="flex items-center justify-between border-b border-[#141925] pb-2">
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-[11px] font-bold font-mono text-slate-200 uppercase">
+                    Location & Geolocation Tracking Rules
+                  </span>
+                </div>
+                <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                  GPS TELEMETRY
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                {/* 1. Master Geolocation Service */}
+                <div className="flex items-center justify-between p-2.5 bg-[#0b0f17] border border-[#18202e]">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-200 block">Geolocation Service</span>
+                    <span className="text-[10px] text-slate-500">Auto-detect GPS coords and reverse geocode.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => isSuperAdminOrAdmin && setEnableLocationTracking(!enableLocationTracking)}
+                    className={cn(
+                      'px-2.5 py-1 text-[10px] font-mono font-bold border transition-all',
+                      enableLocationTracking
+                        ? 'bg-emerald-600 text-white border-emerald-500'
+                        : 'bg-[#121620] text-slate-400 border-[#222837]'
+                    )}
+                  >
+                    {enableLocationTracking ? 'ENABLED' : 'DISABLED'}
+                  </button>
+                </div>
+
+                {/* 2. Require Location on Clock In / Login */}
+                <div className="flex items-center justify-between p-2.5 bg-[#0b0f17] border border-[#18202e]">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-200 block">Require on Clock In (Login)</span>
+                    <span className="text-[10px] text-slate-500">Show GPS capture & mandate location on punch in.</span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!enableLocationTracking}
+                    onClick={() => isSuperAdminOrAdmin && setRequirePunchInLocation(!requirePunchInLocation)}
+                    className={cn(
+                      'px-2.5 py-1 text-[10px] font-mono font-bold border transition-all',
+                      !enableLocationTracking
+                        ? 'opacity-40 cursor-not-allowed bg-[#121620] text-slate-500 border-[#222837]'
+                        : requirePunchInLocation
+                        ? 'bg-amber-600 text-white border-amber-500'
+                        : 'bg-[#121620] text-slate-400 border-[#222837]'
+                    )}
+                  >
+                    {requirePunchInLocation ? 'REQUIRED' : 'OPTIONAL (OFF)'}
+                  </button>
+                </div>
+
+                {/* 3. Require Location on Clock Out / Logout */}
+                <div className="flex items-center justify-between p-2.5 bg-[#0b0f17] border border-[#18202e]">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-200 block">Require on Clock Out (Logout)</span>
+                    <span className="text-[10px] text-slate-500">Show GPS capture & mandate location on punch out.</span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!enableLocationTracking}
+                    onClick={() => isSuperAdminOrAdmin && setRequirePunchOutLocation(!requirePunchOutLocation)}
+                    className={cn(
+                      'px-2.5 py-1 text-[10px] font-mono font-bold border transition-all',
+                      !enableLocationTracking
+                        ? 'opacity-40 cursor-not-allowed bg-[#121620] text-slate-500 border-[#222837]'
+                        : requirePunchOutLocation
+                        ? 'bg-amber-600 text-white border-amber-500'
+                        : 'bg-[#121620] text-slate-400 border-[#222837]'
+                    )}
+                  >
+                    {requirePunchOutLocation ? 'REQUIRED' : 'OPTIONAL (OFF)'}
+                  </button>
+                </div>
+
+                {/* 4. Allow Manual / Desktop Fallback */}
+                <div className="flex items-center justify-between p-2.5 bg-[#0b0f17] border border-[#18202e]">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-200 block">Desktop / Fallback Override</span>
+                    <span className="text-[10px] text-slate-500">Allow fallback if GPS is denied or unavailable.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => isSuperAdminOrAdmin && setAllowManualLocationOverride(!allowManualLocationOverride)}
+                    className={cn(
+                      'px-2.5 py-1 text-[10px] font-mono font-bold border transition-all',
+                      allowManualLocationOverride
+                        ? 'bg-blue-600 text-white border-blue-500'
+                        : 'bg-rose-600 text-white border-rose-500'
+                    )}
+                  >
+                    {allowManualLocationOverride ? 'ALLOWED' : 'STRICT GPS'}
+                  </button>
+                </div>
               </div>
             </div>
 

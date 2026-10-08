@@ -79,6 +79,10 @@ const DEFAULT_ATTENDANCE_POLICY: AttendancePolicy = {
   strict_enforcement: false,
   saturday_off_rule: '3rd_4th',
   working_saturdays_override: [],
+  enable_location_tracking: true,
+  require_punch_in_location: false,
+  require_punch_out_location: false,
+  allow_manual_location_override: true,
 };
 
 const getInitialAttendancePolicy = (): AttendancePolicy => {

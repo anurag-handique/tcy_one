@@ -79,6 +79,13 @@ export function PunchLocationModal() {
 
   const isPunchIn = punchModalMode === 'in';
 
+  // Admin Location Policy
+  const isLocationTrackingEnabled = attendancePolicy?.enable_location_tracking ?? true;
+  const isLocationRequired = isPunchIn
+    ? Boolean(isLocationTrackingEnabled && attendancePolicy?.require_punch_in_location)
+    : Boolean(isLocationTrackingEnabled && attendancePolicy?.require_punch_out_location);
+  const allowManualOverride = attendancePolicy?.allow_manual_location_override ?? true;
+
   const todayStr = new Date().toISOString().split('T')[0];
   const todayAtt = attendance.find(
     (a) =>
@@ -95,8 +102,8 @@ export function PunchLocationModal() {
   const [workMode, setWorkMode] = React.useState<WorkMode>('office');
   const [notes, setNotes] = React.useState('');
 
-  // GPS & Address State
-  const [gpsStatus, setGpsStatus] = React.useState<'detecting' | 'detected' | 'denied' | 'unsupported'>('detecting');
+  // GPS & Address State (Active only when location is required)
+  const [gpsStatus, setGpsStatus] = React.useState<'detecting' | 'detected' | 'denied' | 'unsupported' | 'disabled'>('disabled');
   const [coords, setCoords] = React.useState<string | null>(null);
   const [addressText, setAddressText] = React.useState<string | null>(null);
   const [gpsAccuracy, setGpsAccuracy] = React.useState<string | null>(null);
@@ -112,8 +119,15 @@ export function PunchLocationModal() {
     return () => clearInterval(timer);
   }, [activePunchModalOpen]);
 
-  // Detect location and reverse-geocode to address
+  // Detect location and reverse-geocode to address (only if required by policy)
   const detectLocation = React.useCallback(() => {
+    if (!isLocationRequired) {
+      setGpsStatus('disabled');
+      setCoords(null);
+      setAddressText(null);
+      return;
+    }
+
     setGpsStatus('detecting');
     setCoords(null);
     setAddressText(null);
@@ -145,18 +159,30 @@ export function PunchLocationModal() {
         setGpsStatus('denied');
         setAddressText('Desktop Workstation (Local)');
       },
-      { timeout: 8000, enableHighAccuracy: true }
+      { timeout: 7000, enableHighAccuracy: true }
     );
-  }, []);
+  }, [isLocationRequired]);
 
   React.useEffect(() => {
     if (activePunchModalOpen) {
-      detectLocation();
+      if (isLocationRequired) {
+        detectLocation();
+      } else {
+        setGpsStatus('disabled');
+        setCoords(null);
+        setAddressText(null);
+      }
       setNotes('');
     }
-  }, [activePunchModalOpen, detectLocation]);
+  }, [activePunchModalOpen, isLocationRequired, detectLocation]);
 
   const handleConfirm = () => {
+    // Check if location is strictly required and not present
+    if (isLocationRequired && !allowManualOverride && (gpsStatus === 'denied' || gpsStatus === 'unsupported' || (gpsStatus === 'detecting' && !coords))) {
+      toast.error('Verified GPS location is mandatory for this action by admin policy. Please enable device location.');
+      return;
+    }
+
     const finalLocationName =
       workMode === 'office'
         ? `${currentUser.work_location || 'Headquarters'} Office`
@@ -164,10 +190,13 @@ export function PunchLocationModal() {
         ? 'Remote / Home'
         : 'Client Site / Field';
 
-    const locationDetail = addressText || (coords ? coords : '');
-    const fullLocationString = locationDetail
-      ? `${finalLocationName} • ${locationDetail}`
-      : finalLocationName;
+    let fullLocationString: string;
+    if (!isLocationRequired) {
+      fullLocationString = finalLocationName;
+    } else {
+      const locationDetail = addressText || (coords ? coords : 'Verified Workstation');
+      fullLocationString = `${finalLocationName} • ${locationDetail}`;
+    }
 
     if (isPunchIn) {
       if (isShiftCompleted) {
@@ -199,6 +228,11 @@ export function PunchLocationModal() {
   const startTimeMins = (startH || 9) * 60 + (startM || 30);
   const [maxH, maxM] = (attendancePolicy?.max_punch_in_time || '10:30').split(':').map(Number);
   const maxTimeMins = (maxH || 10) * 60 + (maxM || 30);
+
+  const isStrictLocationBlock =
+    isLocationRequired &&
+    !allowManualOverride &&
+    (gpsStatus === 'denied' || gpsStatus === 'unsupported' || (gpsStatus === 'detecting' && !coords));
 
   const isLate = isPunchIn && currentMins > startTimeMins && currentMins <= maxTimeMins;
   const isPastMax = isPunchIn && currentMins > maxTimeMins;
@@ -321,48 +355,63 @@ export function PunchLocationModal() {
                 </div>
               )}
 
-              {/* Minimalist Verified Location Pill */}
-              <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-2 w-2">
-                      <span
-                        className={`inline-flex rounded-full h-2 w-2 ${
-                          gpsStatus === 'detected'
-                            ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
-                            : gpsStatus === 'detecting'
-                            ? 'bg-amber-400 animate-pulse'
-                            : 'bg-blue-400'
-                        }`}
-                      />
-                    </span>
-                    <span className="text-[11px] font-medium text-slate-400">Verified Location</span>
+              {/* Verified Location Box (Rendered ONLY when location tracking is Required by Admin Policy) */}
+              {isLocationRequired && (
+                <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2 w-2">
+                        <span
+                          className={`inline-flex rounded-full h-2 w-2 ${
+                            gpsStatus === 'detected'
+                              ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                              : gpsStatus === 'detecting'
+                              ? 'bg-amber-400 animate-pulse'
+                              : 'bg-rose-400'
+                          }`}
+                        />
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-300 flex items-center gap-1.5">
+                        <span>Device Geolocation</span>
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                          Required
+                        </span>
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={detectLocation}
+                      title="Refresh GPS capture"
+                      className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white transition-colors"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${gpsStatus === 'detecting' ? 'animate-spin' : ''}`} />
+                      <span>Sync</span>
+                    </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={detectLocation}
-                    title="Refresh GPS capture"
-                    className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white transition-colors"
-                  >
-                    <RefreshCw className={`h-3 w-3 ${gpsStatus === 'detecting' ? 'animate-spin' : ''}`} />
-                    <span>Sync</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between gap-2 text-xs">
-                  <span className="font-medium text-slate-200 truncate">
-                    {gpsStatus === 'detecting'
-                      ? 'Acquiring device telemetry...'
-                      : addressText || coords || 'Desktop System Location'}
-                  </span>
-                  {gpsAccuracy && (
-                    <span className="text-[10px] font-mono text-emerald-400/90 shrink-0 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                      {gpsAccuracy}
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="font-medium text-slate-200 truncate">
+                      {gpsStatus === 'detecting'
+                        ? 'Acquiring required device telemetry...'
+                        : isStrictLocationBlock
+                        ? 'GPS permission denied or unavailable'
+                        : addressText || coords || 'Desktop System Location'}
                     </span>
+                    {gpsAccuracy && (
+                      <span className="text-[10px] font-mono text-emerald-400/90 shrink-0 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                        {gpsAccuracy}
+                      </span>
+                    )}
+                  </div>
+
+                  {isStrictLocationBlock && (
+                    <p className="text-[10px] text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2 rounded-lg mt-1">
+                      Location tracking is required for this action by company policy. Please allow location permissions in your browser.
+                    </p>
                   )}
                 </div>
-              </div>
+              )}
 
               {/* Optional Remarks Note */}
               <div>
@@ -402,9 +451,12 @@ export function PunchLocationModal() {
               <Button
                 type="button"
                 size="sm"
+                disabled={isStrictLocationBlock}
                 onClick={handleConfirm}
                 className={`flex-[2] h-9 rounded-xl text-xs font-semibold tracking-wide transition-all duration-200 gap-2 shadow-lg active:scale-[0.99] ${
-                  isPunchIn
+                  isStrictLocationBlock
+                    ? 'bg-slate-700 text-slate-400 cursor-not-allowed shadow-none'
+                    : isPunchIn
                     ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20 font-bold'
                     : 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/20 font-bold'
                 }`}
